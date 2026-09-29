@@ -1,6 +1,6 @@
 import { Context } from "@deepseek-ai/cordis";
 import { SkillRegistration } from "@deepseek-ai/dsh-skill";
-//#region ../agent-handoff/packages/core/dist/index.d.ts
+//#region node_modules/.pnpm/@agent-handoff+core@file+..+agent-handoff+packages+core/node_modules/@agent-handoff/core/dist/index.d.ts
 /** 六段正文 + 可选「建议加载」段 */
 interface CardSections {
   goal: string;

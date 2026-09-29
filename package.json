@@ -47,9 +47,6 @@
       "patch": "./cordis.patch.yml"
     }
   },
-  "dependencies": {
-    "@agent-handoff/core": "file:../agent-handoff/packages/core"
-  },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
     "@deepseek-ai/dsh-agent": ">=0.1.7-rc.2",
@@ -62,6 +59,7 @@
     }
   },
   "devDependencies": {
+    "@agent-handoff/core": "file:../agent-handoff/packages/core",
     "@deepseek-ai/cordis": "4.0.4",
     "@deepseek-ai/dsh-agent": "0.1.7-rc.2",
     "@deepseek-ai/dsh-skill": "0.1.7-rc.2",
