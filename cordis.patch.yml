@@ -1,0 +1,5 @@
+# 官方 bundle 层：`dsh plugin add` 把它合入 profile。
+# 行按包名解析，安装进 profile 的副本就是启动副本。
+- insert:
+    - id: dsh-baton
+      name: dsh-baton

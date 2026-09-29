@@ -1,0 +1,17 @@
+/**
+ * bundled slash skill 注册表（dsh-resume src/skills.ts 同款模式）：
+ * 一个出处返回全部注册项，src/index.ts 的 apply 逐个 ctx.skills.register。
+ * @module dsh-baton/skills
+ */
+
+import type { SkillRegistration } from '@deepseek-ai/dsh-skill'
+import { handoffSkillRegistration } from './handoff.ts'
+import { inboxSkillRegistration } from './inbox.ts'
+
+export { HANDOFF_SKILL_CONTENT, handoffSkillRegistration } from './handoff.ts'
+export { INBOX_SKILL_CONTENT, inboxSkillRegistration } from './inbox.ts'
+
+/** 全部 bundled slash skill 注册项 */
+export function skillRegistrations(): SkillRegistration[] {
+  return [handoffSkillRegistration(), inboxSkillRegistration()]
+}

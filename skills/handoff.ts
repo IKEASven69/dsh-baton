@@ -1,0 +1,49 @@
+/**
+ * /handoff slash skill：指示 agent 把当前会话蒸馏成六段协议卡片，
+ * 然后调 handoff_push 落盘。userInvocable 而非 modelInvocable（dsh-resume 同款纪律）。
+ * @module dsh-baton/skills/handoff
+ */
+
+import type { SkillRegistration } from '@deepseek-ai/dsh-skill'
+
+export const HANDOFF_SKILL_CONTENT = `# 交接当前会话（/handoff）
+
+把当前 DSH 会话蒸馏成一张 handoff: 1 协议卡片，寄存进共享收件箱 \`~/.handoff/pending/\`，任何 agent 开局可取件。
+
+## 写卡纪律（协议语义五条）
+
+1. **证据账本四态**：卡片正文里每条完成 / 测试 / 部署 / 上线类陈述，必须标且只标一个状态——
+   \`CURRENT_OBSERVED\`（本轮亲自核对过）/ \`HISTORY_REPORTED\`（仅见于历史）/
+   \`MISMATCH\`（当下证据冲突）/ \`UNAVAILABLE\`（无法恢复或验证）。
+   没在本轮核对的，一律 \`HISTORY_REPORTED\`。文件存在只证明文件存在，不证明构建通过或提交已推送。
+2. **原文不进卡片**：\`from.session\` 只是指针，卡片只带蒸馏后的快照。
+3. **不重复已有产物**：计划文档、设计文档、大段代码只写路径，不复制内容——接手方自读。
+4. **redact 是生产者义务**：写卡前抹掉密钥、口令、token、PII。
+5. **尽量给「建议加载」段**：下个会话该预载什么 skill / 先读哪些文件。
+
+## 步骤
+
+1. 回顾本会话，按六段组织内容，标题中文、顺序固定：
+   - **目标**：这个会话在做什么、最后一条用户请求是什么。
+   - **涉及文件**：碰过的文件 / 目录 / 命令。
+   - **做到哪**：已完成的事 + 每条证据状态（四态之一）。
+   - **还差什么**：未完成事项。
+   - **停在哪**：精确停止点 + 接手方最安全的第一步。
+   - **读者警告**：过期信息、坑、redact 说明。
+2. 调 \`handoff_push\`，把六段作为参数传入（goal / files / done / remaining / stopped / warnings，
+   可选 suggested / title / to / project）。留空的段由插件从会话事件流确定性兜底（不调 LLM）；
+   但你亲手蒸馏的内容永远比兜底强——尽量六段都自己写。
+3. 把返回的卡片 id 与路径告诉用户。对方（或另一台机器上的你）用 \`handoff_inbox\` 或 \`/inbox\` 取件。
+`
+
+/** /handoff 注册项 */
+export function handoffSkillRegistration(): SkillRegistration {
+  return {
+    name: 'handoff',
+    description: '把当前会话蒸馏成六段交接卡片，寄存进 ~/.handoff/pending/ 共享收件箱。',
+    source: 'bundled',
+    provider: 'dsh-baton',
+    invocation: { modelInvocable: false, userInvocable: true },
+    content: HANDOFF_SKILL_CONTENT,
+  }
+}
