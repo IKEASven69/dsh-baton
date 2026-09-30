@@ -3,3 +3,4 @@ node_modules/
 .tsc/
 .turbo/
 # 注意：lib/ 产物入库（外部用户没有 dsh checkout 无法构建，dsh-hippo 的教训）
+*.tgz

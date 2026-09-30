@@ -280,6 +280,7 @@ export function registerPushTool(ctx: Context): void {
       title: { type: 'string', description: '会话标题（给人看的，可选）' },
       to: { type: 'string', description: '目标 agent/项目，默认 any' },
       project: { type: 'string', description: '项目名（可选，默认空）' },
+      cwd: { type: 'string', description: '卡片归属的工作目录，缺省取当前会话工作区' },
     },
     output: {
       schema: {
