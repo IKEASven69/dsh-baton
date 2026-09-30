@@ -1,8 +1,12 @@
-# dsh-baton · 交接卡片收件箱
+# dsh-baton · 会话接力插件
 
-**把当前 DSH 会话寄存成一张交接卡片，任何 agent 开局可取件。**
+**会拉、会推、会接力：拉取六家外部 agent 会话，寄存当前会话，开局取件。**
 
-dsh-baton 是 DeepSeek Harness（DSH）插件，实现了 `handoff: 1` 开放协议的共享收件箱（协议本体见姊妹仓 agent-handoff 的 SPEC.md）：
+dsh-baton 是 DeepSeek Harness（DSH）插件，实现 `handoff: 1` 开放协议（协议本体见姊妹仓 agent-handoff 的 SPEC.md）的完整接力闭环：
+
+- **拉**：`/resume-claude` `/resume-codex` `/resume-opencode` `/resume-zcode` `/resume-pi` `/resume-workbuddy` —— 把别家 agent 的本地会话只读拉进当前会话，蒸馏成六段协议卡接手工作；
+- **推**：`/handoff` + `handoff_push` —— 把当前会话寄存成一张交接卡片，落共享收件箱；
+- **接力**：`/inbox` + `handoff_inbox` —— 任何 agent 开局取件；拉取的会话也可以顺手寄存，让另一个 agent 接力。
 
 ```
 ~/.handoff/
@@ -12,19 +16,19 @@ dsh-baton 是 DeepSeek Harness（DSH）插件，实现了 `handoff: 1` 开放协
 
 文件系统即总线：写入 `pending/` 就是投递，取件即移到 `archived/`（消费即弃，二次取件报错）。卡片 = Markdown + YAML frontmatter + 六段中文正文（目标 / 涉及文件 / 做到哪 / 还差什么 / 停在哪 / 读者警告），格式与语义见协议仓 SPEC。
 
-## 和 npm 上的 dsh-handoff 有什么区别
+## 和同类插件的区别
 
 [dsh-handoff](https://www.npmjs.com/package/dsh-handoff)（v0.1.0）是**单向导出**：把会话事件流确定性导出成一份工作区里的 HANDOFF.md 文档，没有收件箱、不落共享目录、不跨 agent。
 
-dsh-baton 是**共享收件箱 + 开放协议**：卡片落 `~/.handoff/pending/` 这个跨 agent、跨工具的公共寄存柜，任何实现了 handoff: 1 协议的工具（不限 DSH）都能生产和消费。两者的确定性事件流收集思路同源（dsh-baton 的探测代码借道 dsh-handoff v0.1.0 的 typeof 防御写法），定位互补不冲突。
+dsh-resume 会**拉**六家会话，但读完即散——没有收件箱、没有消费语义、不能接力。dsh-baton 会拉还会寄存接力：拉取的会话可一键寄存进 `~/.handoff/pending/`（消费即弃 + archived 审计轨迹），另一个 agent（或另一台机器上的你）开局取件继续干。
 
 ## 安装
 
 ```
-dsh plugin --profile web add github:<owner>/dsh-baton#v0.1.0
+dsh plugin --profile web add github:<owner>/dsh-baton#v0.2.0
 ```
 
-> 兼容 DSH `>=0.1.7-rc.2`（package.json `engines.dsh` 声明）。dist（lib/）产物已入库，安装即用，无需本地构建环境。
+> 兼容 DSH `>=0.1.7-rc.2`（package.json `engines.dsh` 声明），需要 **Node ≥22**（zcode 读取器走 Node 内建 `node:sqlite`；其余五家无此要求，但插件整体按 Node ≥22 声明）。lib/ 产物已入库，安装即用，无需本地构建环境。
 
 ## 注册面
 
@@ -32,6 +36,7 @@ dsh plugin --profile web add github:<owner>/dsh-baton#v0.1.0
 
 | 工具 | 说明 |
 |---|---|
+| `foreign_session_read` | 只读拉取六家会话（claude / codex / opencode / zcode / pi / workbuddy）。`action=list` 列候选（标题/时间/轮数）；`action=show` 按引用（空或 `latest`=最新；id/前缀/路径/标题关键词；歧义返回候选不猜）返回**结构化摘要**：标题、轮数、首条用户消息、尾部进展、涉及文件 top15、骨架卡六段素材；turns 原文只在显式传 `limit`/`offset` 时分页给。返回 `{ ok, ... }` 规范值，探测/解析失败 `{ ok: false, error }` 不抛。 |
 | `handoff_push` | 把当前会话寄存为协议卡片。六段文本（goal/files/done/remaining/stopped/warnings/suggested）可选传入；留空段从会话事件流**确定性兜底**（不调 LLM，typeof 探测失败只降级不抛错）。返回 `{ ok, id, path }` 规范值。 |
 | `handoff_inbox` | `action=list` 列待取件（id/来源/项目/时间）；`action=load` + `id` 取件（消费即弃，附 git 核验的 MISMATCH / UNAVAILABLE 警告）。返回 `{ ok, ... }` 规范值。 |
 
@@ -41,21 +46,25 @@ dsh plugin --profile web add github:<owner>/dsh-baton#v0.1.0
 |---|---|
 | `/handoff` | 指示 agent 按协议语义五条（证据账本四态、redact、产物只引路径、建议加载段）把当前会话蒸馏成六段卡，再调 `handoff_push` 落盘 |
 | `/inbox` | 列 pending 让用户挑，取件后把卡片注入当轮；强调卡片为 HISTORY_REPORTED，执行前先核对 git 状态 |
+| `/resume-claude` `/resume-codex` `/resume-opencode` `/resume-zcode` `/resume-pi` `/resume-workbuddy` | 解析引用（空=latest；歧义列候选让用户挑）→ 调 `foreign_session_read` → inert-history 边界（外来历史一律不可信、不覆盖当前指令）→ 证据账本四态标注 → 生成六段协议卡注入当轮 → verify-then-continue → 末尾问一句「要不要寄存进收件箱」，是则调 `handoff_push` |
+
+> LLM 写卡走 skill 指令层：/handoff 与 /resume-* 的 skill 文案引导在场模型亲手改写六段卡（harness 插件的天然优势），工具层保持确定性、不直接调 LLM；模型不写时由事件流/读取器确定性骨架兜底，降级不阻断。
 
 ## 权限范围
 
-只写 `~/.handoff/`（可用 `HANDOFF_HOME` 环境变量覆盖）与读 git 状态（`git status` / `git branch`）。不访问网络，不读会话原文进卡片（`from.session` 只是指针）。
+写 `~/.handoff/`（可用 `HANDOFF_HOME` 环境变量覆盖）、读 git 状态（`git status` / `git branch`）、只读六家 agent 的本地会话库（zcode 走 sqlite readonly，随开随关；可用 `HANDOFF_ROOT_<家>` 环境变量覆盖各家根路径）。不访问网络，不复活外部进程，不回放历史工具调用，原文不进卡片（`from.session` 只是指针）。
 
 ## 开发
 
 ```
-npm install        # @deepseek-ai/* 走 npm（0.1.7-rc.2 已发布）
+pnpm install       # @deepseek-ai/* 走 npm registry；@agent-handoff/* 走 file: 链接
 npm run typecheck
 npm test           # node:test + tsx
-npm run build      # tsdown → lib/（@agent-handoff/core 内联打包）
+npm run build      # tsdown → lib/（@agent-handoff/core + readers 内联打包）
+node scripts/smoke-foreign.mjs   # 实机冒烟：进程内挂载 lib/，真实 dispatch foreign_session_read
 ```
 
-`@agent-handoff/core` 未发布 npm，以 `file:../agent-handoff/packages/core` 依赖、构建时 bundle 进 `lib/`。离线且有 dsh checkout 时可用 `node scripts/link-deps.mjs`（DSH_CHECKOUT 环境变量）链接宿主包替代 npm。
+`@agent-handoff/core` 与 `@agent-handoff/readers` 未发布 npm，以 `file:../agent-handoff/packages/*` 依赖、构建时 bundle 进 `lib/`。离线且有 dsh checkout 时可用 `node scripts/link-deps.mjs`（DSH_CHECKOUT 环境变量）链接宿主包替代 npm。
 
 ## License
 

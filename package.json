@@ -1,7 +1,7 @@
 {
   "name": "dsh-baton",
-  "version": "0.1.0",
-  "description": "交接卡片收件箱：把当前 DSH 会话按 handoff: 1 开放协议寄存进 ~/.handoff/pending/，任何 agent 开局可取件",
+  "version": "0.2.0",
+  "description": "会话接力插件：拉取六家外部 agent 会话（/resume-*）、把当前 DSH 会话按 handoff: 1 开放协议寄存进 ~/.handoff/pending/、开局取件接力",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -29,7 +29,7 @@
     "check": "npm run typecheck && npm test && npm run build"
   },
   "engines": {
-    "node": ">=20",
+    "node": ">=22",
     "dsh": ">=0.1.7-rc.2"
   },
   "license": "MIT",
@@ -60,6 +60,7 @@
   },
   "devDependencies": {
     "@agent-handoff/core": "file:../agent-handoff/packages/core",
+    "@agent-handoff/readers": "file:../agent-handoff/packages/readers",
     "@deepseek-ai/cordis": "4.0.4",
     "@deepseek-ai/dsh-agent": "0.2.0-rc.2",
     "@deepseek-ai/dsh-skill": "0.2.0-rc.2",

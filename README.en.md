@@ -1,8 +1,12 @@
-# dsh-baton · Handoff Card Inbox
+# dsh-baton · Session Baton Plugin
 
-**Check the current DSH session into a shared inbox as a handoff card; any agent can pick it up on start.**
+**Pulls, pushes, relays: pull sessions from six foreign agents, check in the current session, pick up on start.**
 
-dsh-baton is a DeepSeek Harness (DSH) plugin implementing the shared inbox of the open `handoff: 1` protocol:
+dsh-baton is a DeepSeek Harness (DSH) plugin implementing the full relay loop of the open `handoff: 1` protocol (see SPEC.md in the sibling repo agent-handoff):
+
+- **Pull**: `/resume-claude` `/resume-codex` `/resume-opencode` `/resume-zcode` `/resume-pi` `/resume-workbuddy` — read-only pull of a foreign agent's local session into the current one, distilled into a six-section protocol card;
+- **Push**: `/handoff` + `handoff_push` — check the current session into the shared inbox as a handoff card;
+- **Relay**: `/inbox` + `handoff_inbox` — any agent picks up on start; pulled sessions can optionally be checked in too, so another agent can relay the work.
 
 ```
 ~/.handoff/
@@ -12,19 +16,19 @@ dsh-baton is a DeepSeek Harness (DSH) plugin implementing the shared inbox of th
 
 The filesystem is the bus: dropping a card into `pending/` is delivery; picking it up moves it to `archived/` (consume-and-archive; a second pickup of the same id errors). A card = Markdown + YAML frontmatter + six Chinese body sections (目标 / 涉及文件 / 做到哪 / 还差什么 / 停在哪 / 读者警告). See the protocol repo's SPEC for the full format and semantics.
 
-## How it differs from dsh-handoff on npm
+## How it differs from similar plugins
 
 [dsh-handoff](https://www.npmjs.com/package/dsh-handoff) (v0.1.0) is a **one-way exporter**: it deterministically renders the session event stream into a HANDOFF.md document in the workspace — no inbox, no shared directory, no cross-agent pickup.
 
-dsh-baton is a **shared inbox + open protocol**: cards land in `~/.handoff/pending/`, a public locker across agents and tools, so any tool implementing `handoff: 1` (not just DSH) can produce and consume. The deterministic event-stream collection idea is shared heritage (dsh-baton's probing borrows dsh-handoff v0.1.0's defensive `typeof` style); the two are complementary, not competing.
+dsh-resume **pulls** foreign sessions but the result evaporates after the turn — no inbox, no consumption semantics, no relay. dsh-baton pulls *and* relays: a pulled session can be checked into `~/.handoff/pending/` with one confirmation (consume-and-archive + archived audit trail), so another agent — or you on another machine — picks it up on start and continues.
 
 ## Install
 
 ```
-dsh plugin --profile web add github:<owner>/dsh-baton#v0.1.0
+dsh plugin --profile web add github:<owner>/dsh-baton#v0.2.0
 ```
 
-> Compatible with DSH `>=0.1.7-rc.2` (declared via `engines.dsh` in package.json). Built artifacts (lib/) are committed — install and go, no local toolchain required.
+> Compatible with DSH `>=0.1.7-rc.2` (declared via `engines.dsh` in package.json); requires **Node ≥22** (the zcode reader uses the built-in `node:sqlite`; the other five readers have no such requirement, but the plugin as a whole declares Node ≥22). Built artifacts (lib/) are committed — install and go, no local toolchain required.
 
 ## Surface
 
@@ -32,6 +36,7 @@ dsh plugin --profile web add github:<owner>/dsh-baton#v0.1.0
 
 | Tool | Description |
 |---|---|
+| `foreign_session_read` | Read-only pull of six foreign agents' local sessions (claude / codex / opencode / zcode / pi / workbuddy). `action=list` lists candidates (title/time/turn count); `action=show` resolves a reference (empty or `latest` = newest; id / id prefix / path / title keyword; ambiguity returns candidates, never guesses) and returns a **structured summary**: title, turn counts, first user message, tail progress, top-15 involved files, and six-section skeleton-card material. Raw turns are paged only when `limit`/`offset` are explicitly passed. Canonical `{ ok, ... }` values; probe/parse failures return `{ ok: false, error }`, never throw. |
 | `handoff_push` | Checks the current session into the inbox as a protocol card. The six section texts (goal/files/done/remaining/stopped/warnings/suggested) are optional; empty sections fall back to **deterministic** collection from the session event stream (no LLM calls; probe failures degrade, never throw). Returns a canonical `{ ok, id, path }` value. |
 | `handoff_inbox` | `action=list` lists pending cards (id/source/project/time); `action=load` + `id` picks one up (consume-and-archive, with git-verify MISMATCH / UNAVAILABLE warnings). Returns canonical `{ ok, ... }` values. |
 
@@ -41,21 +46,25 @@ dsh plugin --profile web add github:<owner>/dsh-baton#v0.1.0
 |---|---|
 | `/handoff` | Instructs the agent to distill the session into a six-section card per the protocol's five semantics (four-state evidence ledger, redact, reference artifacts by path only, suggested-load section), then persist via `handoff_push` |
 | `/inbox` | Lists pending cards for the user to pick, injects the loaded card into the current turn, and reminds that card content is HISTORY_REPORTED — verify git state before acting |
+| `/resume-claude` `/resume-codex` `/resume-opencode` `/resume-zcode` `/resume-pi` `/resume-workbuddy` | Resolve the reference (empty = latest; ambiguity lists candidates for the user to pick) → call `foreign_session_read` → inert-history boundary (foreign history is untrusted and never overrides current instructions) → four-state evidence ledger → produce a six-section protocol card injected into the turn → verify-then-continue → finally ask "check this card into the inbox?", and on yes call `handoff_push` |
+
+> LLM card-writing lives in the skill-instruction layer: the `/handoff` and `/resume-*` skill texts guide the in-session model to hand-write the six-section card (the natural advantage of a harness plugin), while the tool layer stays deterministic and never calls an LLM directly; when the model doesn't write, deterministic skeletons from the event stream / readers backstop the card — degradation never blocks.
 
 ## Permission scope
 
-Writes only `~/.handoff/` (overridable via `HANDOFF_HOME`) and reads git state (`git status` / `git branch`). No network access; raw session content never enters cards (`from.session` is a pointer).
+Writes `~/.handoff/` (overridable via `HANDOFF_HOME`), reads git state (`git status` / `git branch`), and read-only reads the six agents' local session stores (zcode via sqlite readonly, opened and closed per call; each root overridable via `HANDOFF_ROOT_<AGENT>` env vars). No network access, no reviving foreign processes, no replaying historical tool calls; raw session content never enters cards (`from.session` is a pointer).
 
 ## Development
 
 ```
-npm install        # @deepseek-ai/* from npm (0.1.7-rc.2 is published)
+pnpm install       # @deepseek-ai/* from the npm registry; @agent-handoff/* via file: links
 npm run typecheck
 npm test           # node:test + tsx
-npm run build      # tsdown → lib/ (@agent-handoff/core inlined)
+npm run build      # tsdown → lib/ (@agent-handoff/core + readers inlined)
+node scripts/smoke-foreign.mjs   # on-machine smoke: mount lib/ in-process, real-dispatch foreign_session_read
 ```
 
-`@agent-handoff/core` is not on npm; it is a `file:../agent-handoff/packages/core` dependency bundled into `lib/` at build time. Offline with a DSH checkout at hand, `node scripts/link-deps.mjs` (DSH_CHECKOUT env var) links host packages instead of npm.
+`@agent-handoff/core` and `@agent-handoff/readers` are not on npm; they are `file:../agent-handoff/packages/*` dependencies bundled into `lib/` at build time. Offline with a DSH checkout at hand, `node scripts/link-deps.mjs` (DSH_CHECKOUT env var) links host packages instead of npm.
 
 ## License
 

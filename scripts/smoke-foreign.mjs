@@ -1,0 +1,91 @@
+#!/usr/bin/env node
+/**
+ * v0.2 实机冒烟（不开 dsh web）：用真实 cordis + dsh-tools + dsh-skill 服务
+ * 进程内挂载本仓构建产物 lib/index.js，通过真实工具注册表 dispatch
+ * foreign_session_read（list + show zcode sess_323039e9 前缀），并验证
+ * /resume-* 六条 skill 注册形态。不 mock 任何宿主 API。
+ *
+ * 用法：node scripts/smoke-foreign.mjs
+ */
+import { Context } from '@deepseek-ai/cordis'
+import ToolRuntime from '@deepseek-ai/dsh-tools'
+import SkillRegistry from '@deepseek-ai/dsh-skill'
+import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
+import { pathToFileURL } from 'node:url'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
+const baton = await import(pathToFileURL(join(ROOT, 'lib', 'index.js')).href)
+
+const root = new Context()
+root.plugin(SystemPrompt)
+root.plugin(ToolRuntime)
+root.plugin(SkillRegistry)
+root.plugin(baton)
+
+// cordis 服务挂载是异步的：等 inject 链全部就绪
+await root.start?.()
+for (let i = 0; i < 40 && (!root.get('tools') || !root.get('skills')); i++) {
+  await new Promise((r) => setTimeout(r, 250))
+}
+
+const tools = root.get('tools')
+const skills = root.get('skills')
+if (!tools) throw new Error('tools service missing')
+if (!skills) throw new Error('skills service missing')
+
+let failed = 0
+const check = (label, cond) => {
+  console.log(`${cond ? '✅' : '❌'} ${label}`)
+  if (!cond) failed++
+}
+
+console.log('== 1. 工具注册表 ==')
+const names = tools.schemas().map((s) => s.name)
+console.log('registered tools:', names)
+check('foreign_session_read 已注册', names.includes('foreign_session_read'))
+check('handoff_push / handoff_inbox 仍在', names.includes('handoff_push') && names.includes('handoff_inbox'))
+
+console.log('\n== 2. skill 注册表 ==')
+const skillList = await skills.list({ cwd: process.cwd() })
+const ours = skillList.filter((s) => s.provider === 'dsh-baton')
+for (const s of ours) console.log(`- ${s.name} (user=${s.invocation.userInvocable}, model=${s.invocation.modelInvocable})`)
+check('8 条 bundled skill', ours.length === 8)
+const resumeNames = ['resume-claude', 'resume-codex', 'resume-opencode', 'resume-zcode', 'resume-pi', 'resume-workbuddy']
+check('/resume-* 六条齐全', resumeNames.every((n) => ours.some((s) => s.name === n)))
+check('全部 userInvocable 且非 modelInvocable', ours.every((s) => s.invocation.userInvocable === true && s.invocation.modelInvocable === false))
+
+console.log('\n== 3. 真实 dispatch：foreign_session_read list zcode ==')
+const list = await tools.execute({
+  callId: 'call-list-1', signal: new AbortController().signal,
+  name: 'foreign_session_read',
+  arguments: { provider: 'zcode', action: 'list', limit: 5 },
+})
+check('list 不报错', list.isError !== true)
+const listText = (list.content ?? []).map((b) => b.text ?? '').join('\n')
+console.log(listText.slice(0, 600))
+
+console.log('\n== 4. 真实 dispatch：foreign_session_read show zcode sess_323039e9（前缀引用）==')
+const show = await tools.execute({
+  callId: 'call-show-1', signal: new AbortController().signal,
+  name: 'foreign_session_read',
+  arguments: { provider: 'zcode', action: 'show', reference: 'sess_323039e9' },
+})
+check('show 不报错', show.isError !== true)
+const showText = (show.content ?? []).map((b) => b.text ?? '').join('\n')
+console.log(showText.slice(0, 1200))
+check('返回结构化摘要（含轮数/首条用户消息/骨架素材提示）',
+  showText.includes('结构化摘要') && showText.includes('首条用户消息') && showText.includes('骨架卡六段素材'))
+
+console.log('\n== 5. 真实 dispatch：歧义/找不到的规范错误值 ==')
+const miss = await tools.execute({
+  callId: 'call-miss-1', signal: new AbortController().signal,
+  name: 'foreign_session_read',
+  arguments: { provider: 'zcode', action: 'show', reference: 'sess_00000000-不存在的会话' },
+})
+check('找不到时 ok:false 不抛错', miss.isError !== true)
+console.log((miss.content ?? []).map((b) => b.text ?? '').join('\n').slice(0, 300))
+
+console.log(`\n${failed === 0 ? '🎉 冒烟全部通过' : `💥 ${failed} 项失败`}`)
+process.exit(failed === 0 ? 0 : 1)

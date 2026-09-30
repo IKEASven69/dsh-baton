@@ -7,11 +7,14 @@
 import type { SkillRegistration } from '@deepseek-ai/dsh-skill'
 import { handoffSkillRegistration } from './handoff.ts'
 import { inboxSkillRegistration } from './inbox.ts'
+import { resumeSkillRegistrations } from './resume.ts'
 
 export { HANDOFF_SKILL_CONTENT, handoffSkillRegistration } from './handoff.ts'
 export { INBOX_SKILL_CONTENT, inboxSkillRegistration } from './inbox.ts'
+export { RESUME_SKILL_SPECS, resumeSkillContent, resumeSkillRegistration, resumeSkillRegistrations } from './resume.ts'
+export type { ResumeSkillSpec } from './resume.ts'
 
-/** 全部 bundled slash skill 注册项 */
+/** 全部 bundled slash skill 注册项（/handoff /inbox + /resume-* 六条） */
 export function skillRegistrations(): SkillRegistration[] {
-  return [handoffSkillRegistration(), inboxSkillRegistration()]
+  return [handoffSkillRegistration(), inboxSkillRegistration(), ...resumeSkillRegistrations()]
 }

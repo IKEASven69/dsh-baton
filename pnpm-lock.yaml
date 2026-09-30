@@ -11,6 +11,9 @@ importers:
       '@agent-handoff/core':
         specifier: file:../agent-handoff/packages/core
         version: file:../agent-handoff/packages/core
+      '@agent-handoff/readers':
+        specifier: file:../agent-handoff/packages/readers
+        version: file:../agent-handoff/packages/readers
       '@deepseek-ai/cordis':
         specifier: 4.0.4
         version: 4.0.4
@@ -41,6 +44,10 @@ packages:
   '@agent-handoff/core@file:../agent-handoff/packages/core':
     resolution: {directory: ../agent-handoff/packages/core, type: directory}
     engines: {node: '>=20'}
+
+  '@agent-handoff/readers@file:../agent-handoff/packages/readers':
+    resolution: {directory: ../agent-handoff/packages/readers, type: directory}
+    engines: {node: '>=22'}
 
   '@deepseek-ai/cordis@4.0.4':
     resolution: {integrity: sha512-obgyxqWAmFn3Re8kvsuUnyW+ihrz6eJCnJO4fh1cQzDtmPYz/zzVeUkH9R94I0OwSVOocK67Kgakm04j/oQXzg==}
@@ -894,6 +901,8 @@ packages:
 snapshots:
 
   '@agent-handoff/core@file:../agent-handoff/packages/core': {}
+
+  '@agent-handoff/readers@file:../agent-handoff/packages/readers': {}
 
   '@deepseek-ai/cordis@4.0.4':
     dependencies:

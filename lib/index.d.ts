@@ -136,6 +136,151 @@ export declare function inboxLoad(id: string, opts?: {
   dir?: string;
 }): InboxLoadResult;
 //#endregion
+//#region node_modules/.pnpm/@agent-handoff+readers@file_4bf4d3bdf3c8dcd4c5a57556d6cf5739/node_modules/@agent-handoff/readers/dist/index.d.mts
+//#region src/transcript.d.ts
+/**
+ * 会话 Turn 的最小类型与 Claude transcript 解析（移植自 dsh-hippo src/patterns/transcript.ts，
+ * 去掉 cwdToProject——它依赖 hippo 项目别名表，不属于读取层）。
+ *
+ * 一条 assistant 消息的多个 content block 拆成多个 Turn（text / thinking / tool_use），
+ * user 消息里的 tool_result block 变成带 failed 标记的 tool turn。
+ */
+/** 对话的一个最小单元（从一行 transcript 提取） */
+interface Turn {
+  role: 'user' | 'assistant' | 'tool';
+  text: string;
+  cwd: string;
+  ts: string;
+  toolName: string;
+  toolFailed: boolean;
+  model: string;
+}
+//#endregion
+//#region src/types.d.ts
+/** 一个已发现的会话（发现层产物，轻量：不含内容）。 */
+interface SessionRef {
+  /** 归属适配器名：claude-code | codex | opencode | zcode | pi | workbuddy */
+  agent: string;
+  /** 稳定 id：文件系=绝对路径；SQLite 系=会话 id。 */
+  id: string;
+  title: string;
+  cwd: string;
+  /** 最近更新时间（ms epoch），排序用。 */
+  updatedAt: number;
+  /** 增量指纹：文件系="mtime:size"；SQLite 系=String(time_updated)。 */
+  fingerprint: string;
+  kind: 'file' | 'sqlite';
+}
+//#endregion
+//#region src/foreign.d.ts
+/** 面向用户的六家提供方名 → readers 适配器名（claude 是 claude-code 的别名） */
+export declare const FOREIGN_PROVIDERS: readonly ['claude', 'codex', 'opencode', 'zcode', 'pi', 'workbuddy'];
+type ForeignProvider = (typeof FOREIGN_PROVIDERS)[number];
+/** 引用解析结果（与 readers ResolveResult 同构，解耦后单测可手写） */
+type ForeignResolve = {
+  kind: 'resolved';
+  ref: SessionRef;
+} | {
+  kind: 'ambiguous';
+  candidates: SessionRef[];
+} | {
+  kind: 'not-found';
+  reference: string;
+};
+/** 读取层依赖（默认实现 lazy import @agent-handoff/readers；测试注入假货） */
+interface ForeignReaders {
+  listSessions(agent: string): SessionRef[];
+  resolve(agent: string, reference: string): ForeignResolve;
+  readSession(agent: string, ref: SessionRef | string): Turn[];
+  /** 适配器支持情况：node:sqlite 缺失（Node<22）时 zcode 报 supported=false */
+  adapterNote(agent: string): {
+    supported: boolean;
+    note: string;
+  };
+}
+/** 工具参数 */
+interface ForeignReadArgs {
+  provider?: string;
+  action?: string;
+  reference?: string;
+  limit?: number;
+  offset?: number;
+}
+/** list 的候选条目（标题 / 时间 / 轮数） */
+type ForeignCandidate = {
+  id: string;
+  title: string;
+  cwd: string;
+  updatedAt: string;
+  kind: string;
+  turns: number;
+};
+/** show 的结构化摘要 */
+type ForeignSummary = {
+  title: string;
+  sessionId: string;
+  cwd: string;
+  updatedAt: string;
+  turnCount: number;
+  userTurns: number;
+  firstUserMessage: string;
+  lastUserMessage: string;
+  tailProgress: string[];
+  files: string[];
+  commands: string[];
+};
+/** show 的骨架卡六段素材（模型改写六段卡的原料，全部 HISTORY_REPORTED） */
+type ForeignSkeleton = {
+  goal: string;
+  files: string;
+  done: string;
+  remaining: string;
+  stopped: string;
+  warnings: string;
+};
+/** 分页吐出的原文轮次（仅在模型显式传 limit 时给出） */
+type ForeignTurn = {
+  index: number;
+  role: string;
+  ts: string;
+  toolName: string;
+  toolFailed: boolean;
+  text: string;
+};
+type ForeignReadResult = {
+  ok: true;
+  action: 'list';
+  provider: string;
+  total: number;
+  sessions: ForeignCandidate[];
+} | {
+  ok: true;
+  action: 'show';
+  provider: string;
+  summary: ForeignSummary;
+  skeleton: ForeignSkeleton;
+  turnsTotal: number;
+  turnsOffset: number;
+  turns?: ForeignTurn[];
+  note?: string;
+} | {
+  ok: false;
+  error: string;
+  candidates?: ForeignCandidate[];
+};
+/** 轮次流 → 结构化摘要 + 骨架素材（纯函数，可单测） */
+export declare function summarizeTurns(ref: SessionRef, turns: Turn[]): {
+  summary: ForeignSummary;
+  skeleton: ForeignSkeleton;
+};
+/**
+ * 拉取核心（可脱离 cordis 单测）：deps 缺省走真实 readers。
+ * 任何一步失败都回规范错误值，绝不抛出。
+ */
+export declare function foreignSessionRead(args: ForeignReadArgs, deps?: ForeignReaders): Promise<ForeignReadResult>;
+/** 注册 foreign_session_read 工具 */
+export declare function registerForeignTool(ctx: Context): void;
+//#endregion
 //#region skills/handoff.d.ts
 /** /handoff 注册项 */
 export declare function handoffSkillRegistration(): SkillRegistration;
@@ -144,8 +289,60 @@ export declare function handoffSkillRegistration(): SkillRegistration;
 /** /inbox 注册项 */
 export declare function inboxSkillRegistration(): SkillRegistration;
 //#endregion
+//#region skills/resume.d.ts
+interface ResumeSkillSpec {
+  readonly name: `resume-${ForeignProvider}`;
+  readonly provider: ForeignProvider;
+  readonly product: string;
+  readonly description: string;
+  /** 各家恢复边界文案（读取器排除什么、永不做什么） */
+  readonly recoveryBoundary: string;
+}
+/** 六家注册规格：单一出处，content 由模板函数生成 */
+export declare const RESUME_SKILL_SPECS: readonly [{
+  readonly name: 'resume-claude';
+  readonly provider: 'claude';
+  readonly product: 'Claude Code';
+  readonly description: '把一条 Claude Code 会话拉进当前会话，生成六段交接卡接手工作；可附会话 id、记录路径或标题关键词。';
+  readonly recoveryBoundary: '读取器沿可恢复的 Claude 会话分支读取，排除私密与被替换内容；不复活 CLI、不回放工具调用。';
+}, {
+  readonly name: 'resume-codex';
+  readonly provider: 'codex';
+  readonly product: 'Codex';
+  readonly description: '把一条 Codex 会话拉进当前会话，生成六段交接卡接手工作；可附会话 id、记录路径或标题关键词。';
+  readonly recoveryBoundary: '读取器排除 Codex 的 system / developer / reasoning / world-state / 跨 agent 记录。';
+}, {
+  readonly name: 'resume-opencode';
+  readonly provider: 'opencode';
+  readonly product: 'OpenCode';
+  readonly description: '把一条 OpenCode 会话拉进当前会话，生成六段交接卡接手工作；可附会话 id 或标题关键词。';
+  readonly recoveryBoundary: '读取器只读 OpenCode 本地存储的会话记录；不复活进程、不回放存储的调用。';
+}, {
+  readonly name: 'resume-zcode';
+  readonly provider: 'zcode';
+  readonly product: 'ZCode';
+  readonly description: '把一条 ZCode 会话拉进当前会话，生成六段交接卡接手工作；可附会话 id（支持短前缀）或标题关键词。';
+  readonly recoveryBoundary: '读取器只读 ZCode 的 sqlite 库（readonly、随开随关，需 Node ≥22）；不回放调用、不复活 CLI；压缩段只是摘要标记，仍在库里的旧行保留。';
+}, {
+  readonly name: 'resume-pi';
+  readonly provider: 'pi';
+  readonly product: 'Pi';
+  readonly description: '把一条 Pi 会话拉进当前会话，生成六段交接卡接手工作；可附会话 id、JSONL 路径或标题关键词。';
+  readonly recoveryBoundary: '读取器只沿 Pi 当前活跃叶子读取，排除 thinking、hooks、system 消息与扩展注入的记录。';
+}, {
+  readonly name: 'resume-workbuddy';
+  readonly provider: 'workbuddy';
+  readonly product: 'WorkBuddy';
+  readonly description: '把一条 WorkBuddy 会话拉进当前会话，生成六段交接卡接手工作；可附会话 id、记录路径或标题关键词。';
+  readonly recoveryBoundary: '读取器只导入受支持的 WorkBuddy transcript / 存储记录，永不回放存储的调用。';
+}];
+/** 单条 skill 内容模板：六条共用一个模板函数 */
+export declare function resumeSkillContent(spec: ResumeSkillSpec): string;
+/** 六条注册项（数组驱动，与 RESUME_SKILL_SPECS 一一对应） */
+export declare function resumeSkillRegistrations(): SkillRegistration[];
+//#endregion
 //#region skills/index.d.ts
-/** 全部 bundled slash skill 注册项 */
+/** 全部 bundled slash skill 注册项（/handoff /inbox + /resume-* 六条） */
 export declare function skillRegistrations(): SkillRegistration[];
 //#endregion
 //#region src/index.d.ts
@@ -153,5 +350,5 @@ export declare const name = "dsh-baton";
 export declare const inject: string[];
 export declare function apply(ctx: Context): void;
 //#endregion
-export type { InboxItem, InboxListResult, InboxLoadResult, ProbeResult, PushArgs, PushResult, SessionFacts };
+export type { ForeignCandidate, ForeignProvider, ForeignReadArgs, ForeignReadResult, ForeignReaders, ForeignResolve, ForeignSkeleton, ForeignSummary, ForeignTurn, InboxItem, InboxListResult, InboxLoadResult, ProbeResult, PushArgs, PushResult, ResumeSkillSpec, SessionFacts };
 //# sourceMappingURL=index.d.ts.map
