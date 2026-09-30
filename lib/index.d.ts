@@ -1,6 +1,6 @@
 import { Context } from "@deepseek-ai/cordis";
 import { SkillRegistration } from "@deepseek-ai/dsh-skill";
-//#region node_modules/.pnpm/@agent-handoff+core@file+..+agent-handoff+packages+core/node_modules/@agent-handoff/core/dist/index.d.ts
+//#region node_modules/.pnpm/@agent-handoff+core@file+..+agent-handoff+packages+core/node_modules/@agent-handoff/core/dist/index.d.mts
 /** 六段正文 + 可选「建议加载」段 */
 interface CardSections {
   goal: string;
@@ -54,11 +54,11 @@ interface SessionFacts {
  * 探测会话事件流：优先 session.snapshotEvents()（dsh-session 正式 API），
  * 退回 session.events 数组（dsh-handoff 探测过的形态），再退回降级。
  */
-declare function probeSessionEvents(session: unknown): ProbeResult;
+export declare function probeSessionEvents(session: unknown): ProbeResult;
 /** 遍历事件流收集会话事实；单条事件结构不符就跳过，绝不抛错 */
-declare function collectFacts(events: unknown[]): SessionFacts;
+export declare function collectFacts(events: unknown[]): SessionFacts;
 /** todo 条目 → 协议 tasks 快照（text + status 最小公分母，语义 4：迁快照不迁现场） */
-declare function todoToTasks(facts: SessionFacts): Array<{
+export declare function todoToTasks(facts: SessionFacts): Array<{
   text: string;
   status: string;
   priority?: string;
@@ -90,12 +90,12 @@ type PushResult = {
   error: string;
 };
 /** 确定性兜底：事件流事实 → 六段正文草稿（中文，证据一律 HISTORY_REPORTED） */
-declare function factsToSections(facts: SessionFacts, skipped: boolean, note: string): CardSections;
+export declare function factsToSections(facts: SessionFacts, skipped: boolean, note: string): CardSections;
 /**
  * 推送核心（可脱离 cordis 单测）：组装协议卡片写入 pending/。
  * session 可以是任何形态——探测失败只降级，不抛错。
  */
-declare function pushHandoff(session: unknown, args: PushArgs, opts?: {
+export declare function pushHandoff(session: unknown, args: PushArgs, opts?: {
   dir?: string;
 }): PushResult;
 interface InboxItem {
@@ -117,7 +117,7 @@ type InboxListResult = {
   error: string;
 };
 /** 列出 pending 待取件（新→旧），只读不消费 */
-declare function inboxList(opts?: {
+export declare function inboxList(opts?: {
   dir?: string;
 }): InboxListResult;
 type InboxLoadResult = {
@@ -132,26 +132,26 @@ type InboxLoadResult = {
   error: string;
 };
 /** 取件（消费即弃）：pending → archived，附 verifyGit 的 MISMATCH/UNAVAILABLE 警告 */
-declare function inboxLoad(id: string, opts?: {
+export declare function inboxLoad(id: string, opts?: {
   dir?: string;
 }): InboxLoadResult;
 //#endregion
 //#region skills/handoff.d.ts
 /** /handoff 注册项 */
-declare function handoffSkillRegistration(): SkillRegistration;
+export declare function handoffSkillRegistration(): SkillRegistration;
 //#endregion
 //#region skills/inbox.d.ts
 /** /inbox 注册项 */
-declare function inboxSkillRegistration(): SkillRegistration;
+export declare function inboxSkillRegistration(): SkillRegistration;
 //#endregion
 //#region skills/index.d.ts
 /** 全部 bundled slash skill 注册项 */
-declare function skillRegistrations(): SkillRegistration[];
+export declare function skillRegistrations(): SkillRegistration[];
 //#endregion
 //#region src/index.d.ts
-declare const name = "dsh-baton";
-declare const inject: string[];
-declare function apply(ctx: Context): void;
+export declare const name = "dsh-baton";
+export declare const inject: string[];
+export declare function apply(ctx: Context): void;
 //#endregion
-export { type InboxItem, type InboxListResult, type InboxLoadResult, type ProbeResult, type PushArgs, type PushResult, type SessionFacts, apply, collectFacts, factsToSections, handoffSkillRegistration, inboxList, inboxLoad, inboxSkillRegistration, inject, name, probeSessionEvents, pushHandoff, skillRegistrations, todoToTasks };
+export type { InboxItem, InboxListResult, InboxLoadResult, ProbeResult, PushArgs, PushResult, SessionFacts };
 //# sourceMappingURL=index.d.ts.map
