@@ -206,7 +206,7 @@ test('skill 注册面：/handoff /inbox + /resume-* 八条，共 10 条', () => 
   ])
   for (const reg of regs) {
     assert.equal(reg.source, 'bundled')
-    assert.equal(reg.provider, 'dsh-baton')
+    assert.equal(reg.provider, 'dsh-takeover')
     assert.equal(reg.invocation?.userInvocable, true)
     assert.equal(reg.invocation?.modelInvocable, false)
   }

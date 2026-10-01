@@ -16,13 +16,13 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
-const baton = await import(pathToFileURL(join(ROOT, 'lib', 'index.js')).href)
+const takeover = await import(pathToFileURL(join(ROOT, 'lib', 'index.js')).href)
 
 const root = new Context()
 root.plugin(SystemPrompt)
 root.plugin(ToolRuntime)
 root.plugin(SkillRegistry)
-root.plugin(baton)
+root.plugin(takeover)
 
 // cordis 服务挂载是异步的：等 inject 链全部就绪
 await root.start?.()
@@ -49,7 +49,7 @@ check('handoff_push / handoff_inbox 仍在', names.includes('handoff_push') && n
 
 console.log('\n== 2. skill 注册表 ==')
 const skillList = await skills.list({ cwd: process.cwd() })
-const ours = skillList.filter((s) => s.provider === 'dsh-baton')
+const ours = skillList.filter((s) => s.provider === 'dsh-takeover')
 for (const s of ours) console.log(`- ${s.name} (user=${s.invocation.userInvocable}, model=${s.invocation.modelInvocable})`)
 check('8 条 bundled skill', ours.length === 8)
 const resumeNames = ['resume-claude', 'resume-codex', 'resume-opencode', 'resume-zcode', 'resume-pi', 'resume-workbuddy']

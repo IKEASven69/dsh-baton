@@ -17,7 +17,7 @@ interface CardSections {
  * 事件流确定性收集（不调 LLM、不读时钟之外的副作用）。
  * 借道 npm 包 dsh-handoff v0.1.0 的探测思路：全程 typeof 防御，
  * 任何结构偏差都不抛错——探测失败由调用方降级为规范值，绝不 throw。
- * @module dsh-baton/collect
+ * @module dsh-takeover/collect
  */
 /** 探测结果：events 不可用/无法适配时 skipped=true 并附中文说明 */
 interface ProbeResult {
@@ -302,19 +302,19 @@ export declare function registerForeignTool(ctx: Context, env?: ForeignEnv): voi
 //#endregion
 //#region src/settings.d.ts
 /** 开关文件形态：只记停用名单（默认全开，未知条目载入时丢弃） */
-interface BatonSwitches {
+interface TakeoverSwitches {
   disabledProviders: string[];
 }
 /** config.json 路径（HANDOFF_HOME 优先，否则 ~/.handoff） */
 export declare function switchesPath(dir?: string): string;
 /** 读开关：文件缺失/损坏一律视为默认全开 */
-export declare function loadSwitches(dir?: string): BatonSwitches;
+export declare function loadSwitches(dir?: string): TakeoverSwitches;
 /** 写开关（原子性从简：单文件直写，损坏风险由 loadSwitches 兜底） */
-export declare function saveSwitches(switches: BatonSwitches, dir?: string): void;
+export declare function saveSwitches(switches: TakeoverSwitches, dir?: string): void;
 /** 某家是否启用（默认启用；只认八家名单内的停用条目） */
 export declare function isProviderEnabled(provider: string, dir?: string): boolean;
 /** 切某家开关并持久化；未知 provider 抛中文错（路由层转 400） */
-export declare function setProviderEnabled(provider: string, enabled: boolean, dir?: string): BatonSwitches;
+export declare function setProviderEnabled(provider: string, enabled: boolean, dir?: string): TakeoverSwitches;
 /** 收件箱概览的待取件行 */
 interface PendingRow {
   id: string;
@@ -334,7 +334,7 @@ interface ProviderRow {
   enabled: boolean;
   note: string;
 }
-interface BatonState {
+interface TakeoverState {
   pending: PendingRow[];
   archivedCount: number;
   providers: ProviderRow[];
@@ -343,16 +343,16 @@ interface BatonState {
  * 组装设置卡状态（纯函数核心，读取层与目录都可注入）：
  * 单家探测失败只影响该行，不拖垮整体。
  */
-export declare function buildState(readers: ForeignReaders, dir?: string): BatonState;
+export declare function buildState(readers: ForeignReaders, dir?: string): TakeoverState;
 /** 清空 archived/：删除全部 .md，返回清除份数（目录不存在=0，不视为错误） */
 export declare function clearArchived(dir?: string): number;
 //#endregion
 //#region src/server.d.ts
 /**
- * 注册 /dsh-baton/ 前缀路由。webServer 是宿主可选服务（CLI 形态没有），
+ * 注册 /dsh-takeover/ 前缀路由。webServer 是宿主可选服务（CLI 形态没有），
  * 走 ctx.inject 缺席即跳过，不影响工具与 skill 注册面。
  */
-export declare function registerBatonRoutes(ctx: Context): void;
+export declare function registerTakeoverRoutes(ctx: Context): void;
 //#endregion
 //#region skills/handoff.d.ts
 /** /handoff 注册项 */
@@ -431,9 +431,9 @@ export declare function resumeSkillRegistrations(): SkillRegistration[];
 export declare function skillRegistrations(): SkillRegistration[];
 //#endregion
 //#region src/index.d.ts
-export declare const name = "dsh-baton";
+export declare const name = "dsh-takeover";
 export declare const inject: string[];
 export declare function apply(ctx: Context): void;
 //#endregion
-export type { BatonState, BatonSwitches, ForeignCandidate, ForeignEnv, ForeignProvider, ForeignReadArgs, ForeignReadResult, ForeignReaders, ForeignResolve, ForeignSkeleton, ForeignSummary, ForeignTurn, InboxItem, InboxListResult, InboxLoadResult, PendingRow, ProbeResult, ProviderRow, PushArgs, PushResult, ResumeSkillSpec, SessionFacts };
+export type { ForeignCandidate, ForeignEnv, ForeignProvider, ForeignReadArgs, ForeignReadResult, ForeignReaders, ForeignResolve, ForeignSkeleton, ForeignSummary, ForeignTurn, InboxItem, InboxListResult, InboxLoadResult, PendingRow, ProbeResult, ProviderRow, PushArgs, PushResult, ResumeSkillSpec, SessionFacts, TakeoverState, TakeoverSwitches };
 //# sourceMappingURL=index.d.ts.map

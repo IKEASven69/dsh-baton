@@ -1,5 +1,5 @@
 /**
- * dsh-baton 测试：卡片渲染/落盘、消费即弃、事件流探测降级、规范错误值。
+ * dsh-takeover 测试：卡片渲染/落盘、消费即弃、事件流探测降级、规范错误值。
  * 落盘一律走 HANDOFF_HOME 指到临时目录，不碰真实 ~/.handoff。
  */
 import { mkdtempSync, existsSync, readFileSync, rmSync } from 'node:fs'
@@ -19,7 +19,7 @@ import {
 
 /** 造一个独立 HANDOFF_HOME 临时目录 */
 function tmpHome(): string {
-  return mkdtempSync(join(tmpdir(), 'dsh-baton-test-'))
+  return mkdtempSync(join(tmpdir(), 'dsh-takeover-test-'))
 }
 
 /** 造一个仿真 session（snapshotEvents 形态，对齐 dsh-session API） */
@@ -102,8 +102,8 @@ test('push：六段参数优先，落盘后可解析回协议卡片', () => {
     const r = pushHandoff(fakeSession(SAMPLE_EVENTS), {
       goal: '做完收件箱',
       remaining: '写测试',
-      title: 'baton 开发',
-      project: 'dsh-baton',
+      title: 'takeover 开发',
+      project: 'dsh-takeover',
     }, { dir })
     assert.equal(r.ok, true)
     if (!r.ok) return
@@ -115,8 +115,8 @@ test('push：六段参数优先，落盘后可解析回协议卡片', () => {
     assert.equal(card.id, r.id)
     assert.equal(card.from.agent, 'dsh')
     assert.equal(card.from.session, 'sess-test-1')
-    assert.equal(card.from.title, 'baton 开发')
-    assert.equal(card.project, 'dsh-baton')
+    assert.equal(card.from.title, 'takeover 开发')
+    assert.equal(card.project, 'dsh-takeover')
     assert.equal(card.sections.goal, '做完收件箱')
     assert.equal(card.sections.remaining, '写测试')
     // 未传段走事件流兜底

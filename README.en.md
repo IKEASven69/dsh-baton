@@ -1,10 +1,10 @@
-<p align="center"><img src="assets/icon.svg" width="72" height="72" alt="dsh-baton logo"></p>
+<p align="center"><img src="assets/icon.svg" width="72" height="72" alt="dsh-takeover logo"></p>
 
-# dsh-baton · Session Baton Plugin
+# dsh-takeover · Session Takeover Plugin
 
 **Pulls, pushes, relays: pull sessions from eight foreign agents, check in the current session, pick up on start.**
 
-dsh-baton is a DeepSeek Harness (DSH) plugin implementing the full relay loop of the open `handoff: 1` protocol (see SPEC.md in the sibling repo agent-handoff):
+dsh-takeover is a DeepSeek Harness (DSH) plugin implementing the full relay loop of the open `handoff: 1` protocol (see SPEC.md in the sibling repo agent-handoff):
 
 - **Pull**: `/resume-claude` `/resume-codex` `/resume-opencode` `/resume-zcode` `/resume-pi` `/resume-workbuddy` `/resume-cursor` `/resume-grok` — read-only pull of a foreign agent's local session into the current one, distilled into a six-section protocol card;
 - **Push**: `/handoff` + `handoff_push` — check the current session into the shared inbox as a handoff card;
@@ -22,12 +22,12 @@ The filesystem is the bus: dropping a card into `pending/` is delivery; picking 
 
 [dsh-handoff](https://www.npmjs.com/package/dsh-handoff) (v0.1.0) is a **one-way exporter**: it deterministically renders the session event stream into a HANDOFF.md document in the workspace — no inbox, no shared directory, no cross-agent pickup.
 
-dsh-baton is a **full relay loop**: pull foreign sessions in, check the current session out, pick up on start — three verbs in one plugin. A pulled session can be checked into `~/.handoff/pending/` with one confirmation (consume-and-archive + archived audit trail), so another agent — or you on another machine — picks it up on start and continues.
+dsh-takeover is a **full relay loop**: pull foreign sessions in, check the current session out, pick up on start — three verbs in one plugin. A pulled session can be checked into `~/.handoff/pending/` with one confirmation (consume-and-archive + archived audit trail), so another agent — or you on another machine — picks it up on start and continues.
 
 ## Install
 
 ```
-dsh plugin --profile web add github:<owner>/dsh-baton#v0.2.2
+dsh plugin --profile web add github:<owner>/dsh-takeover#v0.4.0
 ```
 
 > Compatible with DSH `>=0.1.7-rc.2` (declared via `engines.dsh` in package.json); requires **Node ≥22** (the zcode reader and cursor store.db reads use the built-in `node:sqlite`; the other readers have no such requirement, but the plugin as a whole declares Node ≥22). Built artifacts (lib/) are committed — install and go, no local toolchain required.
@@ -54,7 +54,7 @@ dsh plugin --profile web add github:<owner>/dsh-baton#v0.2.2
 
 ## Settings card (dsh web)
 
-Since 0.2.2, a "dsh-baton" card is injected into the DSH settings page (the browser half is declared via `dsh.client`; data flows over same-origin `/dsh-baton/*` JSON APIs). Three zones:
+Since 0.2.2, a "dsh-takeover" card is injected into the DSH settings page (the browser half is declared via `dsh.client`; data flows over same-origin `/dsh-takeover/*` JSON APIs). Three zones:
 
 - **Inbox overview**: the pending list (id / source agent / title / project / pushed-at) plus the archived count; read-only — pickup happens in-session via `/inbox`. A "clear archived" button (two-step confirm) is provided.
 - **Support matrix**: one row per reader — whether this machine supports it (supported), the number of discovered sessions, and an enable toggle. Toggles persist to `<HANDOFF_HOME>/config.json` and survive restarts.

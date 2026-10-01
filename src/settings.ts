@@ -2,10 +2,10 @@
  * 设置卡支撑层（host 半，可脱离 cordis 单测）：
  * - provider 开关：持久化在 <HANDOFF_HOME>/config.json（与 pending/archived 同屋，
  *   重启生效）；foreign_session_read 对停用家返回规范错误值「已停用」。
- * - buildState：设置卡 /dsh-baton/state 的组装逻辑——收件箱概览 + 八家支持矩阵。
+ * - buildState：设置卡 /dsh-takeover/state 的组装逻辑——收件箱概览 + 八家支持矩阵。
  * - clearArchived：清空 archived/ 全部 .md，返回清除份数。
  * 任何一步失败都回规范值 / 降级值，绝不抛出。
- * @module dsh-baton/settings
+ * @module dsh-takeover/settings
  */
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -16,7 +16,7 @@ import { FOREIGN_PROVIDERS, PROVIDER_TO_ADAPTER, type ForeignProvider, type Fore
 // 停用规范错误值文案在 foreign.ts（disabledError），本模块只管开关存取与状态组装
 
 /** 开关文件形态：只记停用名单（默认全开，未知条目载入时丢弃） */
-export interface BatonSwitches {
+export interface TakeoverSwitches {
   disabledProviders: string[]
 }
 
@@ -26,7 +26,7 @@ export function switchesPath(dir?: string): string {
 }
 
 /** 读开关：文件缺失/损坏一律视为默认全开 */
-export function loadSwitches(dir?: string): BatonSwitches {
+export function loadSwitches(dir?: string): TakeoverSwitches {
   try {
     const p = switchesPath(dir)
     if (!existsSync(p)) return { disabledProviders: [] }
@@ -43,7 +43,7 @@ export function loadSwitches(dir?: string): BatonSwitches {
 }
 
 /** 写开关（原子性从简：单文件直写，损坏风险由 loadSwitches 兜底） */
-export function saveSwitches(switches: BatonSwitches, dir?: string): void {
+export function saveSwitches(switches: TakeoverSwitches, dir?: string): void {
   const home = resolveHome(dir)
   mkdirSync(home, { recursive: true })
   writeFileSync(switchesPath(dir), `${JSON.stringify(switches, null, 2)}\n`, 'utf-8')
@@ -55,7 +55,7 @@ export function isProviderEnabled(provider: string, dir?: string): boolean {
 }
 
 /** 切某家开关并持久化；未知 provider 抛中文错（路由层转 400） */
-export function setProviderEnabled(provider: string, enabled: boolean, dir?: string): BatonSwitches {
+export function setProviderEnabled(provider: string, enabled: boolean, dir?: string): TakeoverSwitches {
   if (!(FOREIGN_PROVIDERS as readonly string[]).includes(provider)) {
     throw new Error(`未知 provider：${provider}（支持：${FOREIGN_PROVIDERS.join(' / ')}）`)
   }
@@ -63,13 +63,13 @@ export function setProviderEnabled(provider: string, enabled: boolean, dir?: str
   const set = new Set(cur.disabledProviders)
   if (enabled) set.delete(provider)
   else set.add(provider)
-  const next: BatonSwitches = { disabledProviders: [...set].sort() }
+  const next: TakeoverSwitches = { disabledProviders: [...set].sort() }
   saveSwitches(next, dir)
   return next
 }
 
 // ---------------------------------------------------------------------------
-// /dsh-baton/state 组装
+// /dsh-takeover/state 组装
 // ---------------------------------------------------------------------------
 
 /** 收件箱概览的待取件行 */
@@ -101,7 +101,7 @@ export interface ProviderRow {
   note: string
 }
 
-export interface BatonState {
+export interface TakeoverState {
   pending: PendingRow[]
   archivedCount: number
   providers: ProviderRow[]
@@ -111,7 +111,7 @@ export interface BatonState {
  * 组装设置卡状态（纯函数核心，读取层与目录都可注入）：
  * 单家探测失败只影响该行，不拖垮整体。
  */
-export function buildState(readers: ForeignReaders, dir?: string): BatonState {
+export function buildState(readers: ForeignReaders, dir?: string): TakeoverState {
   const switches = loadSwitches(dir)
 
   const pending: PendingRow[] = listPending(dir).map((c) => ({

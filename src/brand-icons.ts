@@ -8,7 +8,7 @@
  * - grok：xAI 官方 logomark（gilbarbara/logos 收录的官方矢量，256×246 单 path）
  * - workbuddy：workbuddy.cn 官方 logo.svg 整体内嵌（自带渐变圆底，不走 tile）
  * tile 底色均取官方主色；workbuddy 走 BRAND_FULL_SVG 特例。
- * @module dsh-baton/brand-icons
+ * @module dsh-takeover/brand-icons
  */
 
 /** 图标标记：viewBox + tile 底色 + path 列表（fill 逐 path 指定） */

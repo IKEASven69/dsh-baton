@@ -1,7 +1,7 @@
 /**
  * bundled slash skill 注册表（数组驱动、单一模板）：
  * 一个出处返回全部注册项，src/index.ts 的 apply 逐个 ctx.skills.register。
- * @module dsh-baton/skills
+ * @module dsh-takeover/skills
  */
 
 import type { SkillRegistration } from '@deepseek-ai/dsh-skill'

@@ -26,7 +26,7 @@ const result = await build({
 
 const code = result.outputFiles[0].text
 const wrapped = `window.__ModuleLoader__.load({
-\tid: "dsh-baton",
+\tid: "dsh-takeover",
 \tfactory: (require) => {
 \t\tvar module = { exports: {} };
 \t\tvar exports = module.exports;

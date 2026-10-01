@@ -1,7 +1,7 @@
 /**
  * /inbox slash skill：列 pending 让用户挑，取件后把卡片内容注入当轮，
  * 并提醒证据账本边界（卡片 = HISTORY_REPORTED，执行前先核对 git）。
- * @module dsh-baton/skills/inbox
+ * @module dsh-takeover/skills/inbox
  */
 
 import type { SkillRegistration } from '@deepseek-ai/dsh-skill'
@@ -35,7 +35,7 @@ export function inboxSkillRegistration(): SkillRegistration {
     name: 'inbox',
     description: '列出并取走 ~/.handoff/pending/ 里的交接卡片（消费即弃），注入当轮接手工作。',
     source: 'bundled',
-    provider: 'dsh-baton',
+    provider: 'dsh-takeover',
     invocation: { modelInvocable: false, userInvocable: true },
     content: INBOX_SKILL_CONTENT,
   }

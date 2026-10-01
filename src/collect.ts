@@ -2,7 +2,7 @@
  * 事件流确定性收集（不调 LLM、不读时钟之外的副作用）。
  * 借道 npm 包 dsh-handoff v0.1.0 的探测思路：全程 typeof 防御，
  * 任何结构偏差都不抛错——探测失败由调用方降级为规范值，绝不 throw。
- * @module dsh-baton/collect
+ * @module dsh-takeover/collect
  */
 
 /** 探测结果：events 不可用/无法适配时 skipped=true 并附中文说明 */

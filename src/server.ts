@@ -1,10 +1,10 @@
 /**
- * host 侧 /dsh-baton/ JSON API（dsh-hippo 同款 webServer 路由桥先例）：
- *   GET  /dsh-baton/state           设置卡状态（收件箱概览 + 支持矩阵）
- *   POST /dsh-baton/provider        切 provider 开关 {provider, enabled}
- *   POST /dsh-baton/clear-archived  清空 archived/
+ * host 侧 /dsh-takeover/ JSON API（dsh-hippo 同款 webServer 路由桥先例）：
+ *   GET  /dsh-takeover/state           设置卡状态（收件箱概览 + 支持矩阵）
+ *   POST /dsh-takeover/provider        切 provider 开关 {provider, enabled}
+ *   POST /dsh-takeover/clear-archived  清空 archived/
  * POST 一律过同源守卫；响应 { ok, ... } 规范值，失败不抛异常。
- * @module dsh-baton/server
+ * @module dsh-takeover/server
  */
 
 import type { IncomingMessage, ServerResponse } from 'node:http'
@@ -61,18 +61,18 @@ async function stateBody(): Promise<ReturnType<typeof buildState>> {
 }
 
 /**
- * 注册 /dsh-baton/ 前缀路由。webServer 是宿主可选服务（CLI 形态没有），
+ * 注册 /dsh-takeover/ 前缀路由。webServer 是宿主可选服务（CLI 形态没有），
  * 走 ctx.inject 缺席即跳过，不影响工具与 skill 注册面。
  */
-export function registerBatonRoutes(ctx: Context): void {
+export function registerTakeoverRoutes(ctx: Context): void {
   ctx.inject(['webServer'], (host) => {
     host.effect(() => host.webServer.register({
       kind: 'prefix',
       // 注意不能带尾斜杠：匹配规则是 pathname === prefix 或 startsWith(prefix + '/')，
-      // '/dsh-baton/' 会要求 '/dsh-baton//' 才命中（dsh-hippo 的 '/dsh-hippo/app' 先例）。
-      path: '/dsh-baton',
+      // '/dsh-takeover/' 会要求 '/dsh-takeover//' 才命中（dsh-hippo 的 '/dsh-hippo/app' 先例）。
+      path: '/dsh-takeover',
       handler: (request, response) => {
-        const sub = (request.url ?? '/').replace(/^\/dsh-baton\/?/, '').split('?')[0] ?? ''
+        const sub = (request.url ?? '/').replace(/^\/dsh-takeover\/?/, '').split('?')[0] ?? ''
 
         if (sub === 'state') {
           if (request.method !== 'GET') {
@@ -132,7 +132,7 @@ export function registerBatonRoutes(ctx: Context): void {
           return
         }
 
-        sendJson(response, 404, { error: `未知路由：/dsh-baton/${sub}（支持 state / provider / clear-archived）` })
+        sendJson(response, 404, { error: `未知路由：/dsh-takeover/${sub}（支持 state / provider / clear-archived）` })
       },
     }))
   })

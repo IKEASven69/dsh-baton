@@ -1,7 +1,7 @@
 /**
  * /handoff slash skill：指示 agent 把当前会话蒸馏成六段协议卡片，
  * 然后调 handoff_push 落盘。userInvocable 而非 modelInvocable（用户显式触发纪律）。
- * @module dsh-baton/skills/handoff
+ * @module dsh-takeover/skills/handoff
  */
 
 import type { SkillRegistration } from '@deepseek-ai/dsh-skill'
@@ -44,7 +44,7 @@ export function handoffSkillRegistration(): SkillRegistration {
     name: 'handoff',
     description: '把当前会话蒸馏成六段交接卡片，寄存进 ~/.handoff/pending/ 共享收件箱。',
     source: 'bundled',
-    provider: 'dsh-baton',
+    provider: 'dsh-takeover',
     invocation: { modelInvocable: false, userInvocable: true },
     content: HANDOFF_SKILL_CONTENT,
   }

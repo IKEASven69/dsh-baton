@@ -6,7 +6,7 @@
  *   传更大 limit 时分页给（limit/offset）。
  * 读取层是 @agent-handoff/readers（八家适配器），通过依赖注入可替换（单测用）。
  * 全部规范值返回 { ok, ... }；探测 / 解析失败一律 { ok: false, error }，绝不抛出。
- * @module dsh-baton/foreign
+ * @module dsh-takeover/foreign
  */
 
 import type { Context } from '@deepseek-ai/cordis'
@@ -258,7 +258,7 @@ export interface ForeignEnv {
 
 /** 停用规范错误值：与设置卡同一文案口径 */
 export const disabledError = (provider: string): string =>
-  `该 provider 已在设置中停用：${provider}（在设置 → dsh-baton 卡片可重新启用）`
+  `该 provider 已在设置中停用：${provider}（在设置 → dsh-takeover 卡片可重新启用）`
 
 /**
  * 拉取核心（可脱离 cordis 单测）：deps 缺省走真实 readers。

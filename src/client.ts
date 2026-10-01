@@ -1,13 +1,13 @@
 /**
- * dsh-baton 浏览器半：设置页「dsh-baton」卡。
+ * dsh-takeover 浏览器半：设置页「dsh-takeover」卡。
  * 四区：命令速览（/handoff · /inbox · /resume-*，直接可见）/ 收件箱概览
  * （pending 列表可展开看目标段预览 + archived 计数 + 清空归档）/ 支持矩阵
  * （八家读取器：规范名+品牌图标、会话数、启用开关）/ 开关语义说明。
  * 文案走宿主 i18n：ctx.locale 注册本卡词典（zh/en）+ bind 出 t()，
  * 语言切换经 locale revision 驱动重渲染（宿主缺席时回退 zh 静态词典）。
- * 数据通路走同源 fetch 直连 host 路由 /dsh-baton/*（dsh-hippo 先例）。
+ * 数据通路走同源 fetch 直连 host 路由 /dsh-takeover/*（dsh-hippo 先例）。
  * 取件不在设置卡做——会话里 /inbox。
- * @module dsh-baton/client
+ * @module dsh-takeover/client
  */
 
 import { Component, createElement, useEffect, useState, useSyncExternalStore } from 'react'
@@ -24,7 +24,7 @@ import type { Translate } from '@deepseek-ai/dsh-client-ui-slots'
 import { BRAND_FULL_SVG, BRAND_MARKS, PROVIDER_LABEL } from './brand-icons.ts'
 import type { BrandMark } from './brand-icons.ts'
 import { DICTS, NS, interpolate } from './locales.ts'
-import type { BatonState, PendingRow, ProviderRow } from './settings.ts'
+import type { TakeoverState, PendingRow, ProviderRow } from './settings.ts'
 
 /** 卡片渲染语言（跟随宿主 active locale；未登记语言回退 zh） */
 type Lang = 'zh' | 'en'
@@ -61,7 +61,7 @@ function makeT(ctx: Context): Translate {
       t = locale.bind(NS)
     } catch (e) {
       // 重复注册（HMR 重跑）/宿主词典约束变化：降级静态 zh，卡片不塌
-      console.warn('[dsh-baton] locale register/bind 失败，回退静态词典：', e)
+      console.warn('[dsh-takeover] locale register/bind 失败，回退静态词典：', e)
       t = (key, params) => interpolate(DICTS.zh[String(key)] ?? String(key), params)
     }
   } else {
@@ -88,7 +88,7 @@ export const inject = ['slots', 'locale']
 // 渐变 id 加 bt- 前缀避免与宿主页面里的 defs 撞名。
 // ---------------------------------------------------------------------------
 
-const ICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="100%" height="100%" role="img" aria-label="dsh-baton">' +
+const ICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="100%" height="100%" role="img" aria-label="dsh-takeover">' +
   '<defs>' +
   '<linearGradient id="bt-bg" x1="0" y1="0" x2="1" y2="1">' +
   '<stop offset="0" stop-color="#6366F1"/><stop offset="1" stop-color="#8B5CF6"/>' +
@@ -250,9 +250,9 @@ const CSS = `
 // 数据获取
 // ---------------------------------------------------------------------------
 
-async function getState(): Promise<BatonState> {
-  const res = await fetch('/dsh-baton/state', { cache: 'no-store' })
-  const body = await res.json() as BatonState | { error: string }
+async function getState(): Promise<TakeoverState> {
+  const res = await fetch('/dsh-takeover/state', { cache: 'no-store' })
+  const body = await res.json() as TakeoverState | { error: string }
   if (!res.ok || 'error' in body) throw new Error('error' in body ? body.error : `HTTP ${res.status}`)
   return body
 }
@@ -370,7 +370,7 @@ function ProviderMatrix({ rows, busy, onToggle, t }: {
 
 const RESUME_PROVIDERS = ['claude', 'codex', 'opencode', 'zcode', 'pi', 'workbuddy', 'cursor', 'grok'] as const
 
-function CommandsCard({ state, t }: { state: BatonState | null; t: Translate }): ReturnType<typeof createElement> {
+function CommandsCard({ state, t }: { state: TakeoverState | null; t: Translate }): ReturnType<typeof createElement> {
   const disabled = new Set<string>(
     (state?.providers ?? []).filter((p) => !p.enabled).map((p) => p.name as string),
   )
@@ -416,7 +416,7 @@ class PanelBoundary extends Component<{ children: ReturnType<typeof createElemen
       return createElement('div', { className: 'bt-panel' },
         createElement('style', null, CSS),
         createElement('div', { className: 'bt-card' },
-          createElement('div', { className: 'bt-title' }, 'dsh-baton render error'),
+          createElement('div', { className: 'bt-title' }, 'dsh-takeover render error'),
           createElement('pre',
             { style: { fontSize: 11, whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, lineHeight: 1.5 } },
             e.stack ?? e.message ?? String(this.state.err)),
@@ -428,7 +428,7 @@ class PanelBoundary extends Component<{ children: ReturnType<typeof createElemen
 }
 
 function Panel({ t, locale }: { t: Translate; locale: LocaleRuntime | undefined }): ReturnType<typeof createElement> {
-  const [state, setState] = useState<BatonState | null>(null)
+  const [state, setState] = useState<TakeoverState | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [confirmClear, setConfirmClear] = useState(false)
@@ -461,7 +461,7 @@ function Panel({ t, locale }: { t: Translate; locale: LocaleRuntime | undefined 
 
   const toggle = (name: string, enabled: boolean): void => {
     setBusy(name)
-    void post<{ ok: true; state: BatonState }>('/dsh-baton/provider', { provider: name, enabled })
+    void post<{ ok: true; state: TakeoverState }>('/dsh-takeover/provider', { provider: name, enabled })
       .then((r) => { setState(r.state); setError(null) })
       .catch((e: unknown) => { setError(e instanceof Error ? e.message : String(e)) })
       .finally(() => { setBusy(null) })
@@ -475,7 +475,7 @@ function Panel({ t, locale }: { t: Translate; locale: LocaleRuntime | undefined 
     }
     setConfirmClear(false)
     setBusy('clear')
-    void post<{ ok: true; cleared: number }>('/dsh-baton/clear-archived', {})
+    void post<{ ok: true; cleared: number }>('/dsh-takeover/clear-archived', {})
       .then(() => { reload() })
       .catch((e: unknown) => { setError(e instanceof Error ? e.message : String(e)) })
       .finally(() => { setBusy(null) })
@@ -546,11 +546,11 @@ export function apply(ctx: Context): void {
     || typeof (slots as { inject?: unknown }).inject !== 'function'
     || typeof (slots as { register?: unknown }).register !== 'function'
   ) {
-    console.warn('[dsh-baton] 宿主未提供可用的 slots 服务（需要 @deepseek-ai/dsh-client-ui-renderer），设置卡跳过挂载')
+    console.warn('[dsh-takeover] 宿主未提供可用的 slots 服务（需要 @deepseek-ai/dsh-client-ui-renderer），设置卡跳过挂载')
     return
   }
   ctx.slots.inject('settings.section', () => ctx.slots.register(
-    { name: 'settings.section', id: 'dsh-baton', order: 42, label: 'dsh-baton' },
+    { name: 'settings.section', id: 'dsh-takeover', order: 42, label: 'dsh-takeover' },
     () => createElement(PanelBoundary, null,
       createElement(Panel, { t: makeT(ctx), locale: resolveLocale(ctx) })),
   ))

@@ -1,14 +1,14 @@
-<p align="center"><img src="assets/icon.svg" width="72" height="72" alt="dsh-baton logo"></p>
+<p align="center"><img src="assets/icon.svg" width="72" height="72" alt="dsh-takeover logo"></p>
 
-# dsh-baton · 会话接力插件
+# dsh-takeover · 会话接管插件
 
-**会拉、会推、会接力：拉取八家外部 agent 会话，寄存当前会话，开局取件。**
+**会拉、会推、会接管：拉取八家外部 agent 会话，寄存当前会话，开局取件。**
 
-dsh-baton 是 DeepSeek Harness（DSH）插件，实现 `handoff: 1` 开放协议（协议本体见姊妹仓 agent-handoff 的 SPEC.md）的完整接力闭环：
+dsh-takeover 是 DeepSeek Harness（DSH）插件，实现 `handoff: 1` 开放协议（协议本体见姊妹仓 agent-handoff 的 SPEC.md）的完整接管闭环：
 
 - **拉**：`/resume-claude` `/resume-codex` `/resume-opencode` `/resume-zcode` `/resume-pi` `/resume-workbuddy` `/resume-cursor` `/resume-grok` —— 把别家 agent 的本地会话只读拉进当前会话，蒸馏成六段协议卡接手工作；
 - **推**：`/handoff` + `handoff_push` —— 把当前会话寄存成一张交接卡片，落共享收件箱；
-- **接力**：`/inbox` + `handoff_inbox` —— 任何 agent 开局取件；拉取的会话也可以顺手寄存，让另一个 agent 接力。
+- **接管**：`/inbox` + `handoff_inbox` —— 任何 agent 开局取件；拉取的会话也可以顺手寄存，让另一个 agent 接着干。
 
 ```
 ~/.handoff/
@@ -22,12 +22,12 @@ dsh-baton 是 DeepSeek Harness（DSH）插件，实现 `handoff: 1` 开放协议
 
 [dsh-handoff](https://www.npmjs.com/package/dsh-handoff)（v0.1.0）是**单向导出**：把会话事件流确定性导出成一份工作区里的 HANDOFF.md 文档，没有收件箱、不落共享目录、不跨 agent。
 
-dsh-baton 是**完整的接力环**：拉取外部会话、寄存当前会话、开局取件三合一。拉取的会话可一键寄存进 `~/.handoff/pending/`（消费即弃 + archived 审计轨迹），另一个 agent（或另一台机器上的你）开局取件继续干。
+dsh-takeover 是**完整的接管环**：拉取外部会话、寄存当前会话、开局取件三合一。拉取的会话可一键寄存进 `~/.handoff/pending/`（消费即弃 + archived 审计轨迹），另一个 agent（或另一台机器上的你）开局取件继续干。
 
 ## 安装
 
 ```
-dsh plugin --profile web add github:<owner>/dsh-baton#v0.2.2
+dsh plugin --profile web add github:<owner>/dsh-takeover#v0.4.0
 ```
 
 > 兼容 DSH `>=0.1.7-rc.2`（package.json `engines.dsh` 声明），需要 **Node ≥22**（zcode 与 cursor 的 store.db 读取走 Node 内建 `node:sqlite`；其余各家无此要求，但插件整体按 Node ≥22 声明）。lib/ 产物已入库，安装即用，无需本地构建环境。
@@ -54,7 +54,7 @@ dsh plugin --profile web add github:<owner>/dsh-baton#v0.2.2
 
 ## 设置卡（dsh web）
 
-0.2.2 起，DSH 设置页注入一张「dsh-baton」卡片（浏览器半经 `dsh.client` 声明，数据走同源 `/dsh-baton/*` JSON API），三个区：
+0.2.2 起，DSH 设置页注入一张「dsh-takeover」卡片（浏览器半经 `dsh.client` 声明，数据走同源 `/dsh-takeover/*` JSON API），三个区：
 
 - **收件箱概览**：pending 待取件列表（id / 来源 agent / 标题 / 项目 / 推送时间）+ archived 计数；只读展示——取件在会话里 `/inbox` 做。提供「清空 archived」按钮（二次确认）。
 - **支持矩阵**：八家读取器各一行——本机是否支持（supported）、发现的会话数、启用开关。开关持久化在 `<HANDOFF_HOME>/config.json`，重启生效。

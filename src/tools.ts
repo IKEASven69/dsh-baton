@@ -4,7 +4,7 @@
  *   段内容优先用 agent 传入的蒸馏文本；缺省段从事件流确定性兜底（不调 LLM）。
  * - handoff_inbox：list 列待取件；load 取件（消费即弃）+ verifyGit 核验警告。
  * 所有返回值走 { ok, ... } 规范值；任何失败不抛异常，只回 { ok: false, error }。
- * @module dsh-baton/tools
+ * @module dsh-takeover/tools
  */
 
 import type { Context } from '@deepseek-ai/cordis'

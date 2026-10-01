@@ -24,7 +24,7 @@ import { disabledError } from '../src/foreign.ts'
 
 /** 隔离的 HANDOFF_HOME（临时目录） */
 function freshHome(): string {
-  return mkdtempSync(join(tmpdir(), 'baton-settings-'))
+  return mkdtempSync(join(tmpdir(), 'takeover-settings-'))
 }
 
 /** 造一张最小合法卡片 */
@@ -114,7 +114,7 @@ test('停用 provider：foreign_session_read 返回规范错误值「已停用�
 
 test('buildState：pending 概览 + archived 计数 + 支持矩阵八行', () => {
   const home = freshHome()
-  const c1 = makeCard({ from: { agent: 'claude', session: 's1', title: '修收件箱' }, project: 'baton', pushed_at: '2026-10-01T10:00:00+08:00' })
+  const c1 = makeCard({ from: { agent: 'claude', session: 's1', title: '修收件箱' }, project: 'takeover', pushed_at: '2026-10-01T10:00:00+08:00' })
   const c2 = makeCard({ from: { agent: 'codex', session: 's2', title: '' }, pushed_at: '2026-10-02T10:00:00+08:00' })
   writeCard(c1, home)
   writeCard(c2, home)

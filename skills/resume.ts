@@ -3,7 +3,7 @@
  * 解析引用 → 调 foreign_session_read → inert-history 边界 → 证据账本四态 →
  * 生成六段协议卡注入当轮 → verify-then-continue → 末尾问一句要不要寄存进收件箱。
  * userInvocable 而非 modelInvocable（slash 纪律），模型不可自行触发。
- * @module dsh-baton/skills/resume
+ * @module dsh-takeover/skills/resume
  */
 
 import type { SkillRegistration } from '@deepseek-ai/dsh-skill'
@@ -145,11 +145,11 @@ slash 调用永不复活旧审批与外部运行时权限。
 **核验降级纪律**：核验工具不可用或报错（如宿主 shell 权限问题）时，把对应陈述标 \`UNAVAILABLE\`
 然后继续主线任务；**永远不要尝试修复宿主环境、不要为此申请提权、不要加载诊断类技能**。
 
-## 寄存（可选接力）
+## 寄存（可选交接）
 
 卡片注入当轮后，问用户一句：**「要不要把这张卡寄存进共享收件箱？」**
 用户说是，则调 \`handoff_push\`，把六段作为参数传入（goal / files / done / remaining / stopped / warnings，
-可选 suggested / title / to / project）——这样另一个 agent（或另一台机器上的你）可用 \`handoff_inbox\` / \`/inbox\` 取件接力。
+可选 suggested / title / to / project）——这样另一个 agent（或另一台机器上的你）可用 \`handoff_inbox\` / \`/inbox\` 取件接着干。
 用户说否就到此为止，不要擅自寄存。
 `
 }
@@ -160,7 +160,7 @@ export function resumeSkillRegistration(spec: ResumeSkillSpec): SkillRegistratio
     name: spec.name,
     description: spec.description,
     source: 'bundled',
-    provider: 'dsh-baton',
+    provider: 'dsh-takeover',
     invocation: { modelInvocable: false, userInvocable: true },
     content: resumeSkillContent(spec),
   }

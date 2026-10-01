@@ -4,14 +4,14 @@
  * （非合并表命名空间，走单语言非类型化形态）；卡片文案一律经
  * ctx.locale.bind(NS) 出来的 t() 取词，语言切换由宿主 revision 驱动重渲染。
  * 占位符用 {name} 形态，与宿主 LocaleDict 约定一致。
- * @module dsh-baton/locales
+ * @module dsh-takeover/locales
  */
 
 /** 本卡命名空间（宿主 locale 注册表内唯一） */
-export const NS = 'dsh-baton'
+export const NS = 'dsh-takeover'
 
 export const zh: Record<string, string> = {
-  appTitle: 'dsh-baton 会话接力',
+  appTitle: 'dsh-takeover 会话接管',
   appSubtitle: '命令速览 · 交接卡片收件箱 · 八家外部 agent 会话读取器开关',
   refresh: '⟳ 刷新',
   cmdTitle: '命令速览',
@@ -48,7 +48,7 @@ export const zh: Record<string, string> = {
 }
 
 export const en: Record<string, string> = {
-  appTitle: 'dsh-baton Session Relay',
+  appTitle: 'dsh-takeover Session Takeover',
   appSubtitle: 'Commands · Handoff card inbox · Reader switches for 8 external agent CLIs',
   refresh: '⟳ Refresh',
   cmdTitle: 'Commands',
