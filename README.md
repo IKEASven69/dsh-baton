@@ -4,6 +4,9 @@
 
 **会拉、会推、会接管：拉取八家外部 agent 会话，寄存当前会话，开局取件。**
 
+> **为什么叫 takeover？** takeover = 接管：别的 agent 干到一半的会话，你随时接管接着掌控。
+> 协议层词汇保留 handoff（交接，业界通用语），产品层只占「接管」这个词。
+>
 dsh-takeover 是 DeepSeek Harness（DSH）插件，实现 `handoff: 1` 开放协议（协议本体见姊妹仓 agent-handoff 的 SPEC.md）的完整接管闭环：
 
 - **拉**：`/resume-claude` `/resume-codex` `/resume-opencode` `/resume-zcode` `/resume-pi` `/resume-workbuddy` `/resume-cursor` `/resume-grok` —— 把别家 agent 的本地会话只读拉进当前会话，蒸馏成六段协议卡接手工作；

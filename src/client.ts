@@ -84,7 +84,7 @@ export const inject = ['slots', 'locale']
 
 // ---------------------------------------------------------------------------
 // 品牌图标：assets/icon.svg 的内联副本（改图标时两边同步）。
-// 圆角方底 + 45° 接力棒 + 中段交接条纹，渐变 #6366F1→#8B5CF6。
+// 圆角方底 + 接管意象（双箭头 » 进格 |，读作"接管席位"），渐变 #6366F1→#8B5CF6。
 // 渐变 id 加 bt- 前缀避免与宿主页面里的 defs 撞名。
 // ---------------------------------------------------------------------------
 
@@ -101,11 +101,12 @@ const ICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" wi
   '<rect x="2" y="2" width="60" height="60" rx="15" fill="url(#bt-bg)"/>' +
   '<rect x="2" y="2" width="60" height="60" rx="15" fill="url(#bt-sheen)"/>' +
   '<rect x="2.75" y="2.75" width="58.5" height="58.5" rx="14.25" fill="none" stroke="#ffffff" stroke-opacity=".22" stroke-width="1.5"/>' +
-  '<g transform="rotate(-45 32 32)">' +
-  '<rect x="12" y="28" width="40" height="11" rx="5.5" fill="#1e1b4b" opacity=".28"/>' +
-  '<rect x="12" y="26.5" width="40" height="11" rx="5.5" fill="#ffffff"/>' +
-  '<rect x="30" y="26.5" width="4" height="11" fill="#7c6cf8"/>' +
-  '</g></svg>'
+  '<g fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">' +
+  '<path d="M15 19 L27 32 L15 45"/>' +
+  '<path d="M29 19 L41 32 L29 45"/>' +
+  '</g>' +
+  '<rect x="46.5" y="17" width="6" height="30" rx="3" fill="#ffffff" opacity=".9"/>' +
+  '</svg>'
 
 // ---------------------------------------------------------------------------
 // Provider 图标：八家全部官方矢量（见 brand-icons.ts 的来源清单）。
@@ -154,6 +155,7 @@ function ProviderIcon({ name, size = 20 }: { name: string; size?: number }): Ret
 
 const CSS = `
 .bt-panel { display: flex; flex-direction: column; gap: 14px; padding: 4px 0 8px;
+  container-type: inline-size;
   --bt-a: var(--accent, #2563eb); --bt-ok: #15803d; --bt-warn: #b45309; --bt-err: #d93025;
   --bt-line: var(--border, rgba(127,127,127,.28)); --bt-mut: var(--muted, rgba(127,127,127,.92));
   --bt-card: var(--bg, rgba(127,127,127,.05)); --bt-hover: rgba(127,127,127,.07); }
@@ -244,6 +246,12 @@ const CSS = `
 .bt-note summary::before { content: '▸'; font-size: 10px; transition: transform .15s ease; }
 .bt-note[open] summary::before { transform: rotate(90deg); }
 .bt-note-body { margin-top: 6px; }
+/* 窄容器（侧栏收窄）：命令单列、矩阵行收掉会话数列，避免挤压换行 */
+@container (max-width: 430px) {
+  .bt-cmds { grid-template-columns: 1fr; }
+  .bt-mrow { grid-template-columns: minmax(0, auto) auto auto; }
+  .bt-mstat { display: none; }
+}
 `
 
 // ---------------------------------------------------------------------------
@@ -302,7 +310,13 @@ function PendingList({ rows, t, lang }: { rows: PendingRow[]; t: Translate; lang
         key: p.id,
         className: `bt-pending${open ? ' bt-pending-open' : ''}`,
         title: p.id,
+        role: 'button',
+        tabIndex: 0,
+        'aria-expanded': open,
         onClick: () => { toggleOpen(p.id) },
+        onKeyDown: (e: { key: string; preventDefault(): void }) => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleOpen(p.id) }
+        },
       },
         createElement('span', { className: 'bt-pending-title' }, p.title !== '' ? p.title : p.id),
         createElement('span', { className: 'bt-pending-chev' }, '▶'),

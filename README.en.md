@@ -2,13 +2,16 @@
 
 # dsh-takeover · Session Takeover Plugin
 
-**Pulls, pushes, relays: pull sessions from eight foreign agents, check in the current session, pick up on start.**
+**Pull, push, take over: pull sessions from eight foreign agents, check in the current one, pick up where they left off.**
 
-dsh-takeover is a DeepSeek Harness (DSH) plugin implementing the full relay loop of the open `handoff: 1` protocol (see SPEC.md in the sibling repo agent-handoff):
+> **Why "takeover"?** Because that is exactly what happens: a session another agent left half-done is yours to take over and drive.
+> The protocol layer keeps the industry-generic word *handoff*; the product owns *takeover*.
+>
+dsh-takeover is a DeepSeek Harness (DSH) plugin implementing the full takeover loop of the open `handoff: 1` protocol (see SPEC.md in the sibling repo agent-handoff):
 
 - **Pull**: `/resume-claude` `/resume-codex` `/resume-opencode` `/resume-zcode` `/resume-pi` `/resume-workbuddy` `/resume-cursor` `/resume-grok` — read-only pull of a foreign agent's local session into the current one, distilled into a six-section protocol card;
 - **Push**: `/handoff` + `handoff_push` — check the current session into the shared inbox as a handoff card;
-- **Relay**: `/inbox` + `handoff_inbox` — any agent picks up on start; pulled sessions can optionally be checked in too, so another agent can relay the work.
+- **Take over**: `/inbox` + `handoff_inbox` — any agent picks up on start; pulled sessions can optionally be checked in too, so another agent can relay the work.
 
 ```
 ~/.handoff/

@@ -13,10 +13,10 @@
   <rect x="2" y="2" width="60" height="60" rx="15" fill="url(#bt-bg)"/>
   <rect x="2" y="2" width="60" height="60" rx="15" fill="url(#bt-sheen)"/>
   <rect x="2.75" y="2.75" width="58.5" height="58.5" rx="14.25" fill="none" stroke="#ffffff" stroke-opacity=".22" stroke-width="1.5"/>
-  <!-- 接力棒：45° 倾斜圆角棒体（左下→右上，上行姿态），中段一道渐变条纹暗示交接分段 -->
-  <g transform="rotate(-45 32 32)">
-    <rect x="12" y="28" width="40" height="11" rx="5.5" fill="#1e1b4b" opacity=".28"/>
-    <rect x="12" y="26.5" width="40" height="11" rx="5.5" fill="#ffffff"/>
-    <rect x="30" y="26.5" width="4" height="11" fill="#7c6cf8"/>
+  <!-- 接管：双箭头 » 进格 |，读作"接管席位"——别的 agent 干到一半，你进来接着掌控 -->
+  <g fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M15 19 L27 32 L15 45"/>
+    <path d="M29 19 L41 32 L29 45"/>
   </g>
+  <rect x="46.5" y="17" width="6" height="30" rx="3" fill="#ffffff" opacity=".9"/>
 </svg>
