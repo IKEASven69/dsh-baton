@@ -79,6 +79,16 @@ export interface PendingRow {
   title: string
   project: string
   pushedAt: string
+  /** 目标段（sections.goal）预览，截 240 字；空段回退 done 段 */
+  preview: string
+}
+
+/** 预览截断长度（服务端截，避免长卡片把 state 撑大） */
+const PREVIEW_MAX = 240
+
+function previewOf(c: { sections: { goal: string; done: string } }): string {
+  const raw = c.sections.goal !== '' ? c.sections.goal : c.sections.done
+  return raw.length > PREVIEW_MAX ? `${raw.slice(0, PREVIEW_MAX)}…` : raw
 }
 
 /** 支持矩阵行：本机是否支持 / 发现的会话数 / 启用开关 */
@@ -110,6 +120,7 @@ export function buildState(readers: ForeignReaders, dir?: string): BatonState {
     title: c.from.title,
     project: c.project,
     pushedAt: c.pushed_at,
+    preview: previewOf(c),
   }))
 
   const providers: ProviderRow[] = FOREIGN_PROVIDERS.map((name) => {

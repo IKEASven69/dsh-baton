@@ -322,6 +322,8 @@ interface PendingRow {
   title: string;
   project: string;
   pushedAt: string;
+  /** 目标段（sections.goal）预览，截 240 字；空段回退 done 段 */
+  preview: string;
 }
 /** 支持矩阵行：本机是否支持 / 发现的会话数 / 启用开关 */
 interface ProviderRow {

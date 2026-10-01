@@ -1,7 +1,8 @@
 /**
  * dsh-baton 浏览器半：设置页「dsh-baton」卡。
- * 三区：收件箱概览（pending 列表 + archived 计数 + 清空归档）/ 支持矩阵
- * （八家读取器：supported、会话数、启用开关）/ 开关语义说明。
+ * 四区：命令速览（/handoff · /inbox · /resume-*，直接可见）/ 收件箱概览
+ * （pending 列表可展开看目标段预览 + archived 计数 + 清空归档）/ 支持矩阵
+ * （八家读取器：规范名+品牌图标、会话数、启用开关）/ 开关语义说明。
  * 数据通路走同源 fetch 直连 host 路由 /dsh-baton/*（dsh-hippo 先例）。
  * 取件不在设置卡做——会话里 /inbox。
  * @module dsh-baton/client
@@ -14,6 +15,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 // Type-only: pulls the settings shell's SlotMap merge (the 'settings.section' entry).
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
+import { BRAND_BG, BRAND_LETTERS, BRAND_PATHS, PROVIDER_LABEL } from './brand-icons.ts'
 import type { BatonState, PendingRow, ProviderRow } from './settings.ts'
 
 export const inject = ['slots']
@@ -42,6 +44,26 @@ const ICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" wi
   '<rect x="12" y="26.5" width="40" height="11" rx="5.5" fill="#ffffff"/>' +
   '<rect x="30" y="26.5" width="4" height="11" fill="#7c6cf8"/>' +
   '</g></svg>'
+
+// ---------------------------------------------------------------------------
+// Provider 图标：官方 SVG 路径（claude/codex/cursor）白 glyph + 品牌色 tile；
+// 无官方 SVG 的五家用品牌色字母块（见 brand-icons.ts），不冒充官方图标。
+// ---------------------------------------------------------------------------
+
+function ProviderIcon({ name, size = 20 }: { name: string; size?: number }): ReturnType<typeof createElement> {
+  const bg = BRAND_BG[name] ?? '#52525b'
+  const path = BRAND_PATHS[name]
+  const letter = BRAND_LETTERS[name] ?? (name.charAt(0).toUpperCase() || '?')
+  return createElement('span', {
+    className: 'bt-icon',
+    style: { background: bg, width: size, height: size },
+    title: PROVIDER_LABEL[name] ?? name,
+  }, path
+    ? createElement('svg', { viewBox: '0 0 24 24', width: Math.round(size * 0.62), height: Math.round(size * 0.62), 'aria-hidden': true },
+        createElement('path', { d: path, fill: '#fff' }))
+    : createElement('span', { className: 'bt-icon-letter', style: { fontSize: letter.length > 1 ? 8.5 : 11 } }, letter),
+  )
+}
 
 // ---------------------------------------------------------------------------
 // 样式：颜色尽量继承宿主令牌（--accent/--border/--muted），兜底值保证浅色可读；
@@ -83,18 +105,41 @@ const CSS = `
 .bt-rows { display: flex; flex-direction: column; gap: 8px; }
 .bt-pending { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 3px 10px; align-items: baseline;
   border: 1px solid var(--bt-line); border-radius: 9px; padding: 9px 12px; font-size: 12.5px;
-  transition: border-color .15s ease, background .15s ease; }
+  cursor: pointer; transition: border-color .15s ease, background .15s ease; }
 .bt-pending:hover { border-color: var(--bt-a); background: var(--bt-hover); }
 .bt-pending-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bt-pending-meta { font-size: 11px; color: var(--bt-mut); opacity: .85; grid-column: 1 / -1; display: flex; gap: 10px; flex-wrap: wrap; }
+.bt-pending-chev { font-size: 10px; color: var(--bt-mut); transition: transform .15s ease; justify-self: end; }
+.bt-pending-open .bt-pending-chev { transform: rotate(90deg); }
+.bt-pending-meta { font-size: 11px; color: var(--bt-mut); opacity: .85; grid-column: 1 / -1; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.bt-src { display: inline-flex; align-items: center; gap: 4px; }
+.bt-preview { grid-column: 1 / -1; font-size: 12px; line-height: 1.65; color: inherit; opacity: .88;
+  border-left: 2px solid var(--bt-a); padding: 2px 0 2px 10px; margin-top: 4px; white-space: pre-wrap;
+  word-break: break-word; display: flex; flex-direction: column; gap: 4px; }
+.bt-preview-hint { font-size: 10.5px; color: var(--bt-mut); }
+.bt-cmds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; }
+.bt-cmd { display: flex; align-items: center; gap: 8px; min-width: 0; border: 1px solid var(--bt-line);
+  border-radius: 8px; padding: 6px 10px; font-size: 12px; background: transparent;
+  transition: opacity .15s ease, border-color .15s ease; }
+.bt-cmd-key { font-family: ui-monospace, monospace; font-size: 11.5px; font-weight: 600; flex: none; }
+.bt-cmd-key-primary { color: var(--bt-a); }
+.bt-cmd-desc { color: var(--bt-mut); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bt-cmd .bt-icon { width: 16px; height: 16px; flex: none; border-radius: 5px; }
+.bt-cmd-off { opacity: .42; }
+.bt-icon { display: inline-flex; align-items: center; justify-content: center; border-radius: 6px;
+  flex: none; box-shadow: inset 0 0 0 1px rgba(255,255,255,.14), 0 1px 2px rgba(0,0,0,.16); }
+.bt-icon svg { display: block; }
+.bt-icon-letter { color: #fff; font-weight: 700; line-height: 1; letter-spacing: -.02em; user-select: none; }
 .bt-matrix { display: flex; flex-direction: column; }
-.bt-mrow { display: grid; grid-template-columns: 110px 1fr auto auto; gap: 10px; align-items: center;
-  padding: 7px 2px; font-size: 12.5px; border-bottom: 1px dashed var(--bt-line);
-  transition: opacity .15s ease; }
+.bt-mrow { display: grid; grid-template-columns: minmax(170px, auto) 1fr auto auto; gap: 10px; align-items: center;
+  padding: 7px 4px; font-size: 12.5px; border-bottom: 1px dashed var(--bt-line); border-radius: 6px;
+  transition: opacity .15s ease, background .15s ease; }
+.bt-mrow:hover { background: var(--bt-hover); }
 .bt-mrow:last-child { border-bottom: none; }
 .bt-mrow-idle { opacity: .48; }
 .bt-mrow-idle:hover { opacity: .8; }
-.bt-mname { font-weight: 600; font-family: ui-monospace, monospace; font-size: 12px; }
+.bt-mname-wrap { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.bt-mname { font-weight: 600; font-size: 12.5px; white-space: nowrap; }
+.bt-mid { font-family: ui-monospace, monospace; font-size: 10.5px; color: var(--bt-mut); opacity: .75; }
 .bt-mstat { font-size: 11.5px; color: var(--bt-mut); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bt-pill { font-size: 10.5px; font-weight: 600; padding: 1px 8px; border-radius: 999px; flex: none;
   min-width: 34px; text-align: center; box-sizing: border-box; }
@@ -152,22 +197,44 @@ function fmtTime(iso: string): string {
 // ---------------------------------------------------------------------------
 
 function PendingList({ rows }: { rows: PendingRow[] }): ReturnType<typeof createElement> {
+  const [openIds, setOpenIds] = useState<Set<string>>(new Set())
+  const toggleOpen = (id: string): void => {
+    setOpenIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
   if (rows.length === 0) {
     return createElement('div', { className: 'bt-banner bt-banner-info' },
       '📭 收件箱为空。取件不在此进行——在会话里用 /inbox 消费即取。')
   }
   return createElement('div', { className: 'bt-rows' },
-    ...rows.map((p) =>
-      createElement('div', { key: p.id, className: 'bt-pending', title: p.id },
+    ...rows.map((p) => {
+      const open = openIds.has(p.id)
+      return createElement('div', {
+        key: p.id,
+        className: `bt-pending${open ? ' bt-pending-open' : ''}`,
+        title: p.id,
+        onClick: () => { toggleOpen(p.id) },
+      },
         createElement('span', { className: 'bt-pending-title' }, p.title !== '' ? p.title : p.id),
-        createElement('span', { className: 'bt-sub' }, fmtTime(p.pushedAt)),
+        createElement('span', { className: 'bt-pending-chev' }, '▶'),
         createElement('span', { className: 'bt-pending-meta' },
-          createElement('span', null, `来源 ${p.agent}`),
+          createElement('span', { className: 'bt-src' },
+            createElement(ProviderIcon, { name: p.agent, size: 14 }),
+            `来源 ${PROVIDER_LABEL[p.agent] ?? p.agent}`,
+          ),
           p.project !== '' ? createElement('span', null, `项目 ${p.project}`) : null,
           createElement('span', null, `id ${p.id}`),
         ),
-      ),
-    ),
+        open ? createElement('div', { className: 'bt-preview', onClick: (e: Event) => e.stopPropagation() },
+          createElement('span', null, p.preview !== '' ? p.preview : '（卡片正文为空）'),
+          createElement('span', { className: 'bt-preview-hint' }, '—— 仅预览「目标」段；取件请回会话用 /inbox。'),
+        ) : null,
+      )
+    }),
   )
 }
 
@@ -177,13 +244,18 @@ function ProviderMatrix({ rows, busy, onToggle }: {
   onToggle: (name: string, enabled: boolean) => void
 }): ReturnType<typeof createElement> {
   return createElement('div', { className: 'bt-matrix' },
-    ...rows.map((r) =>
-      createElement('div', {
+    ...rows.map((r) => {
+      const label = PROVIDER_LABEL[r.name] ?? r.name
+      return createElement('div', {
         key: r.name,
         className: `bt-mrow${!r.supported || r.sessions === 0 ? ' bt-mrow-idle' : ''}`,
         title: r.note !== '' ? r.note : undefined,
       },
-        createElement('span', { className: 'bt-mname' }, r.name),
+        createElement('span', { className: 'bt-mname-wrap' },
+          createElement(ProviderIcon, { name: r.name }),
+          createElement('span', { className: 'bt-mname' }, label),
+          createElement('span', { className: 'bt-mid' }, r.name),
+        ),
         createElement('span', { className: 'bt-mstat' },
           r.supported
             ? `${r.sessions >= 0 ? `${r.sessions} 个会话` : '会话数探测失败'}`
@@ -194,12 +266,53 @@ function ProviderMatrix({ rows, busy, onToggle }: {
           className: `bt-toggle${r.enabled ? ' bt-toggle-on' : ''}`,
           role: 'switch',
           'aria-checked': r.enabled,
-          'aria-label': `${r.name} 读取开关`,
+          'aria-label': `${label}（${r.name}）读取开关`,
           disabled: busy !== null,
-          title: r.enabled ? `点击停用 ${r.name}（foreign_session_read 将返回「已停用」）` : `点击启用 ${r.name}`,
+          title: r.enabled ? `点击停用 ${label}（foreign_session_read 将返回「已停用」）` : `点击启用 ${label}`,
           onClick: () => { onToggle(r.name, !r.enabled) },
         }),
-      ),
+      )
+    }),
+  )
+}
+
+// ---------------------------------------------------------------------------
+// 命令速览：直接可见（不折叠）。provider 与 foreign.ts 的 FOREIGN_PROVIDERS
+// 保持一致——不直接 import（值引入会把 host 半的 cordis/dsh-tools 拖进客户端包）。
+// ---------------------------------------------------------------------------
+
+const RESUME_PROVIDERS = ['claude', 'codex', 'opencode', 'zcode', 'pi', 'workbuddy', 'cursor', 'grok'] as const
+
+function CommandsCard({ state }: { state: BatonState | null }): ReturnType<typeof createElement> {
+  const disabled = new Set<string>(
+    (state?.providers ?? []).filter((p) => !p.enabled).map((p) => p.name as string),
+  )
+  const chip = (cmd: string, desc: string, provider?: string, primary = false): ReturnType<typeof createElement> => {
+    const off = provider !== undefined && disabled.has(provider)
+    const label = provider !== undefined ? (PROVIDER_LABEL[provider] ?? provider) : undefined
+    return createElement('div', {
+      key: cmd,
+      className: `bt-cmd${off ? ' bt-cmd-off' : ''}`,
+      title: off ? `${label} 已在支持矩阵里停用，命令会返回「已停用」` : undefined,
+    },
+      provider !== undefined
+        ? createElement(ProviderIcon, { name: provider })
+        : createElement('span', { className: 'bt-icon', style: { width: 16, height: 16, background: 'var(--bt-a, #2563eb)' } },
+            createElement('svg', { viewBox: '0 0 64 64', width: 10, height: 10, 'aria-hidden': true },
+              createElement('rect', { x: 12, y: 26.5, width: 40, height: 11, rx: 5.5, fill: '#fff', transform: 'rotate(-45 32 32)' }))),
+      createElement('span', { className: `bt-cmd-key${primary ? ' bt-cmd-key-primary' : ''}` }, cmd),
+      createElement('span', { className: 'bt-cmd-desc' }, desc),
+    )
+  }
+  return createElement('div', { className: 'bt-card' },
+    createElement('div', { className: 'bt-head' },
+      createElement('span', { className: 'bt-title', style: { fontSize: 13 } }, '命令速览'),
+      createElement('span', { className: 'bt-badge' }, '会话里用，卡片只读'),
+    ),
+    createElement('div', { className: 'bt-cmds' },
+      chip('/handoff', '寄存当前会话 → 收件箱', undefined, true),
+      chip('/inbox', '开局取件（消费即弃）', undefined, true),
+      ...RESUME_PROVIDERS.map((p) => chip(`/resume-${p}`, `拉取 ${PROVIDER_LABEL[p] ?? p} 会话`, p)),
     ),
   )
 }
@@ -251,13 +364,16 @@ function Panel(): ReturnType<typeof createElement> {
         createElement('span', { className: 'bt-logo', dangerouslySetInnerHTML: { __html: ICON_SVG } }),
         createElement('span', null,
           createElement('div', { className: 'bt-title' }, 'dsh-baton 会话接力'),
-          createElement('div', { className: 'bt-sub' }, '交接卡片收件箱 + 八家外部 agent 会话读取器开关'),
+          createElement('div', { className: 'bt-sub' }, '命令速览 · 交接卡片收件箱 · 八家外部 agent 会话读取器开关'),
         ),
         createElement('span', { className: 'bt-spacer' }),
         createElement('button', { className: 'bt-btn', onClick: reload, disabled: busy !== null }, '⟳ 刷新'),
       ),
       error !== null ? createElement('div', { className: 'bt-banner bt-banner-err' }, error) : null,
     ),
+
+    // 命令速览（直接可见）
+    createElement(CommandsCard, { state }),
 
     // 收件箱概览
     createElement('div', { className: 'bt-card' },

@@ -135,6 +135,7 @@ test('buildState：pending 概览 + archived 计数 + 支持矩阵八行', () =>
   assert.equal(st.pending[0]?.id, c2.id)
   assert.equal(st.pending[0]?.agent, 'codex')
   assert.equal(st.pending[0]?.pushedAt, '2026-10-02T10:00:00+08:00')
+  assert.equal(st.pending[0]?.preview, 'g') // goal 段进预览
   assert.equal(st.archivedCount, 1)
 
   assert.equal(st.providers.length, 8)
@@ -147,6 +148,21 @@ test('buildState：pending 概览 + archived 计数 + 支持矩阵八行', () =>
   assert.match(zcode?.note ?? '', /Node ≥22/)
   assert.equal(zcode?.enabled, false) // 开关停用
   assert.equal(zcode?.sessions, -1) // 不支持的家不探测
+})
+
+test('buildState：preview 空 goal 回退 done 段；超 240 字截断', () => {
+  const home = freshHome()
+  const long = '长'.repeat(300)
+  const c1 = makeCard({ sections: { goal: '', files: '', done: long, remaining: '', stopped: '', warnings: '' } })
+  const c2 = makeCard({ sections: { goal: '', files: '', done: '兜底内容', remaining: '', stopped: '', warnings: '' } })
+  writeCard(c1, home)
+  writeCard(c2, home)
+  const st = buildState(fakeReaders(), home)
+  const p1 = st.pending.find((p) => p.id === c1.id)
+  const p2 = st.pending.find((p) => p.id === c2.id)
+  assert.equal(p1?.preview.length, 241) // 240 字 + 省略号
+  assert.match(p1?.preview ?? '', /…$/)
+  assert.equal(p2?.preview, '兜底内容')
 })
 
 test('buildState：单家探测抛错只降级该行，不拖垮整体', () => {
