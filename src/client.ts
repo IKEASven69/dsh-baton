@@ -3,23 +3,84 @@
  * 四区：命令速览（/handoff · /inbox · /resume-*，直接可见）/ 收件箱概览
  * （pending 列表可展开看目标段预览 + archived 计数 + 清空归档）/ 支持矩阵
  * （八家读取器：规范名+品牌图标、会话数、启用开关）/ 开关语义说明。
+ * 文案走宿主 i18n：ctx.locale 注册本卡词典（zh/en）+ bind 出 t()，
+ * 语言切换经 locale revision 驱动重渲染（宿主缺席时回退 zh 静态词典）。
  * 数据通路走同源 fetch 直连 host 路由 /dsh-baton/*（dsh-hippo 先例）。
  * 取件不在设置卡做——会话里 /inbox。
  * @module dsh-baton/client
  */
 
-import { createElement, useEffect, useState } from 'react'
+import { Component, createElement, useEffect, useState, useSyncExternalStore } from 'react'
 // 0.2.0：一方客户端插件直接收 cordis Context。
 import type { Context } from '@deepseek-ai/cordis'
 // Type-only: ctx.slots（SlotRegistry 服务）由 ui-renderer 的 cordis Context 合并提供。
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 // Type-only: pulls the settings shell's SlotMap merge (the 'settings.section' entry).
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
+// Type-only: ctx.locale（LocaleRuntime）由 dsh-client-locale 的 Context 增强提供。
+import type { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
+// Type-only: Translate 形态（(key, params) => string，{name} 占位）。
+import type { Translate } from '@deepseek-ai/dsh-client-ui-slots'
 import { BRAND_FULL_SVG, BRAND_MARKS, PROVIDER_LABEL } from './brand-icons.ts'
 import type { BrandMark } from './brand-icons.ts'
+import { DICTS, NS, interpolate } from './locales.ts'
 import type { BatonState, PendingRow, ProviderRow } from './settings.ts'
 
-export const inject = ['slots']
+/** 卡片渲染语言（跟随宿主 active locale；未登记语言回退 zh） */
+type Lang = 'zh' | 'en'
+
+// ---------------------------------------------------------------------------
+// i18n：注册本卡词典并绑定 t。宿主 locale 服务缺席（旧宿主/非浏览器）时
+// 回退 zh 静态词典 + 本地插值，保证卡片永远可用。
+// ---------------------------------------------------------------------------
+
+const tCache = new WeakMap<object, Translate>()
+
+/**
+ * 防御式取宿主 locale 服务：cordis 对未挂载服务的属性访问会直接 throw
+ * （locale 插件可能晚于本插件挂载），绝不能让异常从渲染工厂里逃出去。
+ */
+function resolveLocale(ctx: Context): LocaleRuntime | undefined {
+  try {
+    const l: unknown = (ctx as unknown as { locale?: unknown }).locale
+    return l !== null && typeof l === 'object' ? (l as LocaleRuntime) : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function makeT(ctx: Context): Translate {
+  const hit = tCache.get(ctx)
+  if (hit !== undefined) return hit
+  const locale = resolveLocale(ctx)
+  let t: Translate
+  if (locale !== undefined && typeof locale.register === 'function' && typeof locale.bind === 'function') {
+    try {
+      locale.register(NS, 'zh', DICTS.zh)
+      locale.register(NS, 'en', DICTS.en)
+      t = locale.bind(NS)
+    } catch (e) {
+      // 重复注册（HMR 重跑）/宿主词典约束变化：降级静态 zh，卡片不塌
+      console.warn('[dsh-baton] locale register/bind 失败，回退静态词典：', e)
+      t = (key, params) => interpolate(DICTS.zh[String(key)] ?? String(key), params)
+    }
+  } else {
+    t = (key, params) => interpolate(DICTS.zh[String(key)] ?? String(key), params)
+  }
+  tCache.set(ctx, t)
+  return t
+}
+
+/** 宿主 active locale → 卡片渲染语言 */
+function langOf(locale: LocaleRuntime | undefined): Lang {
+  try {
+    return locale?.getLocale().active === 'en' ? 'en' : 'zh'
+  } catch {
+    return 'zh'
+  }
+}
+
+export const inject = ['slots', 'locale']
 
 // ---------------------------------------------------------------------------
 // 品牌图标：assets/icon.svg 的内联副本（改图标时两边同步）。
@@ -207,19 +268,21 @@ async function post<T extends object>(path: string, body: unknown): Promise<T> {
   return data
 }
 
-function fmtTime(iso: string): string {
-  if (iso === '') return '（无时间）'
+function fmtTime(iso: string, lang: Lang): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso
   const pad = (n: number): string => String(n).padStart(2, '0')
-  return `${d.getMonth() + 1}月${d.getDate()}日 ${pad(d.getHours())}:${pad(d.getMinutes())}`
+  const hm = `${pad(d.getHours())}:${pad(d.getMinutes())}`
+  return lang === 'en'
+    ? `${d.getMonth() + 1}/${d.getDate()} ${hm}`
+    : `${d.getMonth() + 1}月${d.getDate()}日 ${hm}`
 }
 
 // ---------------------------------------------------------------------------
 // 展示件
 // ---------------------------------------------------------------------------
 
-function PendingList({ rows }: { rows: PendingRow[] }): ReturnType<typeof createElement> {
+function PendingList({ rows, t, lang }: { rows: PendingRow[]; t: Translate; lang: Lang }): ReturnType<typeof createElement> {
   const [openIds, setOpenIds] = useState<Set<string>>(new Set())
   const toggleOpen = (id: string): void => {
     setOpenIds((prev) => {
@@ -230,8 +293,7 @@ function PendingList({ rows }: { rows: PendingRow[] }): ReturnType<typeof create
     })
   }
   if (rows.length === 0) {
-    return createElement('div', { className: 'bt-banner bt-banner-info' },
-      '📭 收件箱为空。取件不在此进行——在会话里用 /inbox 消费即取。')
+    return createElement('div', { className: 'bt-banner bt-banner-info' }, t('emptyInbox'))
   }
   return createElement('div', { className: 'bt-rows' },
     ...rows.map((p) => {
@@ -247,24 +309,26 @@ function PendingList({ rows }: { rows: PendingRow[] }): ReturnType<typeof create
         createElement('span', { className: 'bt-pending-meta' },
           createElement('span', { className: 'bt-src' },
             createElement(ProviderIcon, { name: p.agent, size: 14 }),
-            `来源 ${PROVIDER_LABEL[p.agent] ?? p.agent}`,
+            t('from', { name: PROVIDER_LABEL[p.agent] ?? p.agent }),
           ),
-          p.project !== '' ? createElement('span', null, `项目 ${p.project}`) : null,
+          p.project !== '' ? createElement('span', null, t('project', { name: p.project })) : null,
           createElement('span', null, `id ${p.id}`),
+          createElement('span', null, p.pushedAt === '' ? t('noTime') : fmtTime(p.pushedAt, lang)),
         ),
         open ? createElement('div', { className: 'bt-preview', onClick: (e: Event) => e.stopPropagation() },
-          createElement('span', null, p.preview !== '' ? p.preview : '（卡片正文为空）'),
-          createElement('span', { className: 'bt-preview-hint' }, '—— 仅预览「目标」段；取件请回会话用 /inbox。'),
+          createElement('span', null, p.preview !== '' ? p.preview : t('previewEmpty')),
+          createElement('span', { className: 'bt-preview-hint' }, t('previewHint')),
         ) : null,
       )
     }),
   )
 }
 
-function ProviderMatrix({ rows, busy, onToggle }: {
+function ProviderMatrix({ rows, busy, onToggle, t }: {
   rows: ProviderRow[]
   busy: string | null
   onToggle: (name: string, enabled: boolean) => void
+  t: Translate
 }): ReturnType<typeof createElement> {
   return createElement('div', { className: 'bt-matrix' },
     ...rows.map((r) => {
@@ -281,17 +345,17 @@ function ProviderMatrix({ rows, busy, onToggle }: {
         ),
         createElement('span', { className: 'bt-mstat' },
           r.supported
-            ? `${r.sessions >= 0 ? `${r.sessions} 个会话` : '会话数探测失败'}`
-            : `本机不支持${r.note !== '' ? `：${r.note}` : ''}`),
+            ? (r.sessions >= 0 ? t('sessionsCount', { n: r.sessions }) : t('sessionsProbeFail'))
+            : (r.note !== '' ? t('unsupportedNote', { note: r.note }) : t('unsupported'))),
         createElement('span', { className: `bt-pill ${r.supported ? 'bt-pill-ok' : 'bt-pill-no'}` },
-          r.supported ? '支持' : '不可用'),
+          r.supported ? t('pillOk') : t('pillNo')),
         createElement('button', {
           className: `bt-toggle${r.enabled ? ' bt-toggle-on' : ''}`,
           role: 'switch',
           'aria-checked': r.enabled,
-          'aria-label': `${label}（${r.name}）读取开关`,
+          'aria-label': t('toggleAria', { label, id: r.name }),
           disabled: busy !== null,
-          title: r.enabled ? `点击停用 ${label}（foreign_session_read 将返回「已停用」）` : `点击启用 ${label}`,
+          title: r.enabled ? t('toggleDisable', { label }) : t('toggleEnable', { label }),
           onClick: () => { onToggle(r.name, !r.enabled) },
         }),
       )
@@ -306,7 +370,7 @@ function ProviderMatrix({ rows, busy, onToggle }: {
 
 const RESUME_PROVIDERS = ['claude', 'codex', 'opencode', 'zcode', 'pi', 'workbuddy', 'cursor', 'grok'] as const
 
-function CommandsCard({ state }: { state: BatonState | null }): ReturnType<typeof createElement> {
+function CommandsCard({ state, t }: { state: BatonState | null; t: Translate }): ReturnType<typeof createElement> {
   const disabled = new Set<string>(
     (state?.providers ?? []).filter((p) => !p.enabled).map((p) => p.name as string),
   )
@@ -316,7 +380,7 @@ function CommandsCard({ state }: { state: BatonState | null }): ReturnType<typeo
     return createElement('div', {
       key: cmd,
       className: `bt-cmd${off ? ' bt-cmd-off' : ''}`,
-      title: off ? `${label} 已在支持矩阵里停用，命令会返回「已停用」` : undefined,
+      title: off && label !== undefined ? t('cmdOffTitle', { label }) : undefined,
     },
       provider !== undefined
         ? createElement(ProviderIcon, { name: provider })
@@ -329,22 +393,63 @@ function CommandsCard({ state }: { state: BatonState | null }): ReturnType<typeo
   }
   return createElement('div', { className: 'bt-card' },
     createElement('div', { className: 'bt-head' },
-      createElement('span', { className: 'bt-title', style: { fontSize: 13 } }, '命令速览'),
-      createElement('span', { className: 'bt-badge' }, '会话里用，卡片只读'),
+      createElement('span', { className: 'bt-title', style: { fontSize: 13 } }, t('cmdTitle')),
+      createElement('span', { className: 'bt-badge' }, t('cmdBadge')),
     ),
     createElement('div', { className: 'bt-cmds' },
-      chip('/handoff', '寄存当前会话 → 收件箱', undefined, true),
-      chip('/inbox', '开局取件（消费即弃）', undefined, true),
-      ...RESUME_PROVIDERS.map((p) => chip(`/resume-${p}`, `拉取 ${PROVIDER_LABEL[p] ?? p} 会话`, p)),
+      chip('/handoff', t('cmdHandoffDesc'), undefined, true),
+      chip('/inbox', t('cmdInboxDesc'), undefined, true),
+      ...RESUME_PROVIDERS.map((p) => chip(`/resume-${p}`, t('cmdResumeDesc', { name: PROVIDER_LABEL[p] ?? p }), p)),
     ),
   )
 }
 
-function Panel(): ReturnType<typeof createElement> {
+// 渲染错误边界：任何渲染期异常直接显示在卡片里（宿主外壳会吞 React 报错，
+// 静默空白最难排查——宁可把错误亮出来）。
+type BoundaryState = { err: unknown }
+class PanelBoundary extends Component<{ children: ReturnType<typeof createElement> }, BoundaryState> {
+  override state: BoundaryState = { err: null }
+  static getDerivedStateFromError(err: unknown): BoundaryState { return { err } }
+  override render(): ReturnType<typeof createElement> {
+    if (this.state.err !== null) {
+      const e = this.state.err as { stack?: string; message?: string }
+      return createElement('div', { className: 'bt-panel' },
+        createElement('style', null, CSS),
+        createElement('div', { className: 'bt-card' },
+          createElement('div', { className: 'bt-title' }, 'dsh-baton render error'),
+          createElement('pre',
+            { style: { fontSize: 11, whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, lineHeight: 1.5 } },
+            e.stack ?? e.message ?? String(this.state.err)),
+        ),
+      )
+    }
+    return this.props.children
+  }
+}
+
+function Panel({ t, locale }: { t: Translate; locale: LocaleRuntime | undefined }): ReturnType<typeof createElement> {
   const [state, setState] = useState<BatonState | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [confirmClear, setConfirmClear] = useState(false)
+  // 语言切换实时重渲染：宿主 locale revision 变化即重画（bound t 在渲染时取词）
+  useSyncExternalStore(
+    (cb) => {
+      try {
+        return locale?.subscribe(cb) ?? (() => {})
+      } catch {
+        return (() => {}) as () => void
+      }
+    },
+    () => {
+      try {
+        return locale?.getSnapshot().revision ?? 0
+      } catch {
+        return 0
+      }
+    },
+  )
+  const lang: Lang = langOf(locale)
 
   const reload = (): void => {
     void getState().then(
@@ -386,22 +491,22 @@ function Panel(): ReturnType<typeof createElement> {
       createElement('div', { className: 'bt-head' },
         createElement('span', { className: 'bt-logo', dangerouslySetInnerHTML: { __html: ICON_SVG } }),
         createElement('span', null,
-          createElement('div', { className: 'bt-title' }, 'dsh-baton 会话接力'),
-          createElement('div', { className: 'bt-sub' }, '命令速览 · 交接卡片收件箱 · 八家外部 agent 会话读取器开关'),
+          createElement('div', { className: 'bt-title' }, t('appTitle')),
+          createElement('div', { className: 'bt-sub' }, t('appSubtitle')),
         ),
         createElement('span', { className: 'bt-spacer' }),
-        createElement('button', { className: 'bt-btn', onClick: reload, disabled: busy !== null }, '⟳ 刷新'),
+        createElement('button', { className: 'bt-btn', onClick: reload, disabled: busy !== null }, t('refresh')),
       ),
       error !== null ? createElement('div', { className: 'bt-banner bt-banner-err' }, error) : null,
     ),
 
     // 命令速览（直接可见）
-    createElement(CommandsCard, { state }),
+    createElement(CommandsCard, { state, t }),
 
     // 收件箱概览
     createElement('div', { className: 'bt-card' },
       createElement('div', { className: 'bt-head' },
-        createElement('span', { className: 'bt-title', style: { fontSize: 13 } }, '收件箱概览'),
+        createElement('span', { className: 'bt-title', style: { fontSize: 13 } }, t('inboxTitle')),
         createElement('span', { className: `bt-badge${(state?.pending.length ?? 0) > 0 ? ' bt-badge-hot' : ''}` }, `pending ${state?.pending.length ?? '…'}`),
         createElement('span', { className: `bt-badge${archivedCount > 0 ? ' bt-badge-hot' : ''}` }, `archived ${archivedCount}`),
         createElement('span', { className: 'bt-spacer' }),
@@ -409,26 +514,25 @@ function Panel(): ReturnType<typeof createElement> {
           className: `bt-btn bt-btn-danger${confirmClear ? ' bt-btn-confirm' : ''}`,
           disabled: busy !== null || archivedCount === 0,
           onClick: clear,
-          title: '删除 archived/ 下全部已消费卡片（不可恢复）',
-        }, confirmClear ? `确认清空 ${archivedCount} 张？` : '清空 archived'),
+          title: t('clearArchivedTitle'),
+        }, confirmClear ? t('clearConfirm', { n: archivedCount }) : t('clearArchived')),
       ),
-      state !== null ? createElement(PendingList, { rows: state.pending }) : createElement('div', { className: 'bt-sub' }, '加载中…'),
+      state !== null
+        ? createElement(PendingList, { rows: state.pending, t, lang })
+        : createElement('div', { className: 'bt-sub' }, t('loading')),
     ),
 
     // 支持矩阵
     createElement('div', { className: 'bt-card' },
       createElement('div', { className: 'bt-head' },
-        createElement('span', { className: 'bt-title', style: { fontSize: 13 } }, '支持矩阵（八家读取器）'),
+        createElement('span', { className: 'bt-title', style: { fontSize: 13 } }, t('matrixTitle')),
       ),
       state !== null
-        ? createElement(ProviderMatrix, { rows: state.providers, busy, onToggle: toggle })
-        : createElement('div', { className: 'bt-sub' }, '加载中…'),
+        ? createElement(ProviderMatrix, { rows: state.providers, busy, onToggle: toggle, t })
+        : createElement('div', { className: 'bt-sub' }, t('loading')),
       createElement('details', { className: 'bt-note' },
-        createElement('summary', null, '💡 开关语义说明'),
-        createElement('div', { className: 'bt-note-body' },
-          '关掉的 provider：foreign_session_read 对该家返回规范错误值「已停用」；' +
-          '/resume-* 对应 skill 的指引文本为静态内容，停用状态由工具报错兜住，模型可见。' +
-          '会话数为 0 的灰色行表示该家本机未装或暂无会话，开关保留但无数据可读。')),
+        createElement('summary', null, t('noteSummary')),
+        createElement('div', { className: 'bt-note-body' }, t('noteBody'))),
     ),
   )
 }
@@ -447,6 +551,7 @@ export function apply(ctx: Context): void {
   }
   ctx.slots.inject('settings.section', () => ctx.slots.register(
     { name: 'settings.section', id: 'dsh-baton', order: 42, label: 'dsh-baton' },
-    () => createElement(Panel),
+    () => createElement(PanelBoundary, null,
+      createElement(Panel, { t: makeT(ctx), locale: resolveLocale(ctx) })),
   ))
 }
