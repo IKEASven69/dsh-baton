@@ -132,12 +132,13 @@ function ProviderIcon({ name, size = 20 }: { name: string; size?: number }): Ret
   }
   const mark = providerMark(name)
   if (mark === null) {
-    const letter = name.charAt(0).toUpperCase() || '?'
+    // 未知来源（实践中只有 dsh 宿主自己）：用本插件品牌小标，不出字母块
     return createElement('span', {
       className: 'bt-icon',
-      style: { background: '#52525b', width: size, height: size },
+      style: { background: 'linear-gradient(135deg, #6366F1, #8B5CF6)', width: size, height: size },
       title: PROVIDER_LABEL[name] ?? name,
-    }, createElement('span', { className: 'bt-icon-letter' }, letter))
+      dangerouslySetInnerHTML: { __html: '<svg viewBox="0 0 64 64" width="100%" height="100%"><g fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"><path d="M15 19 L27 32 L15 45"/><path d="M29 19 L41 32 L29 45"/></g></svg>' },
+    })
   }
   return createElement('span', {
     className: 'bt-icon',
@@ -186,27 +187,28 @@ const CSS = `
 .bt-banner { font-size: 12px; line-height: 1.6; border-radius: 9px; padding: 8px 12px; }
 .bt-banner-info { color: var(--bt-mut); background: rgba(127,127,127,.08); }
 .bt-banner-err { color: var(--bt-err); background: rgba(211,47,47,.08); }
-.bt-rows { display: flex; flex-direction: column; gap: 8px; }
-.bt-pending { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: flex-start;
-  border: 1px solid var(--bt-line); border-radius: 10px; padding: 10px 12px; font-size: 12.5px;
-  cursor: pointer; transition: border-color .15s ease, background .15s ease, box-shadow .15s ease; }
-.bt-pending:hover { border-color: var(--bt-a); background: var(--bt-hover); }
+.bt-rows { display: flex; flex-direction: column; gap: 2px; }
+.bt-pending { display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: flex-start;
+  border-radius: 8px; padding: 8px 10px; font-size: 12.5px;
+  cursor: pointer; transition: background .12s ease; }
+.bt-pending:hover { background: var(--bt-hover); }
 .bt-pending:focus-visible { outline: 2px solid var(--bt-a); outline-offset: -2px; }
-.bt-pend-icon { flex: none; margin-top: 1px; }
-.bt-pend-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.bt-pend-line1 { display: flex; align-items: baseline; gap: 10px; }
-.bt-pending-title { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bt-pending-open { background: var(--bt-hover); }
+.bt-pend-icon { flex: none; margin-top: 2px; }
+.bt-pend-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.bt-pend-line1 { display: flex; align-items: baseline; gap: 8px; }
+.bt-pending-title { flex: 1; min-width: 0; font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bt-pend-time { flex: none; font-size: 11px; color: var(--bt-mut); }
-.bt-pending-chev { flex: none; font-size: 11px; color: var(--bt-mut); margin-top: 2px; transition: transform .15s ease; }
+.bt-pending-chev { flex: none; font-size: 10px; color: var(--bt-mut); align-self: center; transition: transform .15s ease; }
 .bt-pending-open .bt-pending-chev { transform: rotate(90deg); }
 .bt-pend-meta { display: flex; gap: 6px; align-items: baseline; font-size: 11px; color: var(--bt-mut);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bt-pend-src { font-weight: 500; }
-.bt-pend-dot { opacity: .5; }
-.bt-pend-id { font-family: ui-monospace, monospace; font-size: 10.5px; opacity: .72; }
-.bt-pending-open { border-color: var(--bt-a); }
-.bt-preview { flex-basis: 100%; font-size: 12px; line-height: 1.65; color: inherit; opacity: .9;
-  border-left: 2px solid var(--bt-a); padding: 2px 0 2px 10px; margin-top: 6px; white-space: pre-wrap;
+.bt-pend-dot { opacity: .45; }
+.bt-pend-id { font-family: ui-monospace, monospace; font-size: 10.5px; opacity: .68; }
+.bt-preview { flex-basis: 100%; font-size: 12px; line-height: 1.65; color: inherit;
+  background: var(--bt-card); border-left: 2px solid var(--bt-a); border-radius: 0 8px 8px 0;
+  padding: 8px 12px; margin: 4px 0 2px 0; white-space: pre-wrap;
   word-break: break-word; display: flex; flex-direction: column; gap: 4px; }
 .bt-preview-hint { font-size: 10.5px; color: var(--bt-mut); }
 .bt-cmds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; }
@@ -290,6 +292,9 @@ function fmtTime(iso: string, lang: Lang): string {
   if (Number.isNaN(d.getTime())) return iso
   const pad = (n: number): string => String(n).padStart(2, '0')
   const hm = `${pad(d.getHours())}:${pad(d.getMinutes())}`
+  const now = new Date()
+  const sameDay = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate()
+  if (sameDay) return hm // 今天的只给时刻，别把行撑长
   return lang === 'en'
     ? `${d.getMonth() + 1}/${d.getDate()} ${hm}`
     : `${d.getMonth() + 1}月${d.getDate()}日 ${hm}`
