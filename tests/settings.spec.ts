@@ -1,0 +1,177 @@
+/**
+ * v0.2.2 设置卡测试：
+ * - 开关状态读写（loadSwitches / setProviderEnabled，临时目录隔离，不碰真实 ~/.handoff）
+ * - 停用 provider 的 foreign_session_read 规范错误值
+ * - buildState 组装（pending 概览 / archived 计数 / 支持矩阵）与 clearArchived
+ * 读取层一律注入假货（ForeignReaders）。
+ */
+import assert from 'node:assert/strict'
+import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import test from 'node:test'
+import { generateId, writeCard, loadCard, type Card } from '@agent-handoff/core'
+import { foreignSessionRead, type ForeignReaders } from '../src/foreign.ts'
+import {
+  buildState,
+  clearArchived,
+  isProviderEnabled,
+  loadSwitches,
+  setProviderEnabled,
+  switchesPath,
+} from '../src/settings.ts'
+import { disabledError } from '../src/foreign.ts'
+
+/** 隔离的 HANDOFF_HOME（临时目录） */
+function freshHome(): string {
+  return mkdtempSync(join(tmpdir(), 'baton-settings-'))
+}
+
+/** 造一张最小合法卡片 */
+function makeCard(partial?: Partial<Card>): Card {
+  return {
+    handoff: 1,
+    id: generateId(),
+    from: { agent: 'dsh', session: 'sess-x', title: '' },
+    to: 'any',
+    project: '',
+    cwd: tmpdir(),
+    pushed_at: '2026-10-01T10:00:00+08:00',
+    git: { branch: '', changed: [] },
+    tasks: [],
+    sections: { goal: 'g', files: 'f', done: 'd', remaining: 'r', stopped: 's', warnings: 'w' },
+    extras: {},
+    ...partial,
+  }
+}
+
+/** 假货读取层：支持情况 / 会话数全可控 */
+function fakeReaders(overrides?: Partial<ForeignReaders>): ForeignReaders {
+  return {
+    listSessions: () => [],
+    resolve: () => ({ kind: 'not-found', reference: '' }),
+    readSession: () => [],
+    adapterNote: () => ({ supported: true, note: '' }),
+    ...overrides,
+  }
+}
+
+// ---------- 开关读写 ----------
+
+test('开关：缺省全开；config.json 缺失/损坏都视为全开', () => {
+  const home = freshHome()
+  assert.equal(isProviderEnabled('claude', home), true)
+  assert.deepEqual(loadSwitches(home), { disabledProviders: [] })
+  // 损坏的 config.json 不炸，回默认
+  mkdirSync(home, { recursive: true })
+  writeFileSync(switchesPath(home), 'not json{', 'utf-8')
+  assert.equal(isProviderEnabled('codex', home), true)
+})
+
+test('开关：setProviderEnabled 持久化，重读后仍生效（重启语义）', () => {
+  const home = freshHome()
+  setProviderEnabled('grok', false, home)
+  setProviderEnabled('pi', false, home)
+  // 模拟重启：重新从磁盘读
+  assert.equal(isProviderEnabled('grok', home), false)
+  assert.equal(isProviderEnabled('pi', home), false)
+  assert.equal(isProviderEnabled('claude', home), true)
+  assert.deepEqual(loadSwitches(home).disabledProviders, ['grok', 'pi'])
+  // 重新启用
+  setProviderEnabled('grok', true, home)
+  assert.equal(isProviderEnabled('grok', home), true)
+  assert.deepEqual(loadSwitches(home).disabledProviders, ['pi'])
+})
+
+test('开关：未知 provider 抛中文错；损坏文件里的未知条目载入时丢弃', () => {
+  const home = freshHome()
+  assert.throws(() => setProviderEnabled('emacs', false, home), /未知 provider/)
+  mkdirSync(home, { recursive: true })
+  writeFileSync(switchesPath(home), JSON.stringify({ disabledProviders: ['emacs', 'cursor', 42] }), 'utf-8')
+  assert.deepEqual(loadSwitches(home).disabledProviders, ['cursor'])
+})
+
+// ---------- 停用规范错误值 ----------
+
+test('停用 provider：foreign_session_read 返回规范错误值「已停用」，list/show 同闸', async () => {
+  const env = { isEnabled: (p: string) => p !== 'claude' }
+  const listed = await foreignSessionRead({ provider: 'claude', action: 'list' }, fakeReaders(), env)
+  assert.equal(listed.ok, false)
+  if (!listed.ok) {
+    assert.match(listed.error, /在设置中停用/)
+    assert.match(listed.error, /claude/)
+    assert.equal(listed.error, disabledError('claude'))
+  }
+  const shown = await foreignSessionRead({ provider: 'claude', action: 'show' }, fakeReaders(), env)
+  assert.equal(shown.ok, false)
+  if (!shown.ok) assert.match(shown.error, /在设置中停用/)
+  // 未停用的家照常工作
+  const ok = await foreignSessionRead({ provider: 'codex', action: 'list' }, fakeReaders(), env)
+  assert.equal(ok.ok, true)
+})
+
+// ---------- buildState / clearArchived ----------
+
+test('buildState：pending 概览 + archived 计数 + 支持矩阵八行', () => {
+  const home = freshHome()
+  const c1 = makeCard({ from: { agent: 'claude', session: 's1', title: '修收件箱' }, project: 'baton', pushed_at: '2026-10-01T10:00:00+08:00' })
+  const c2 = makeCard({ from: { agent: 'codex', session: 's2', title: '' }, pushed_at: '2026-10-02T10:00:00+08:00' })
+  writeCard(c1, home)
+  writeCard(c2, home)
+  // 取件一张 → 进 archived
+  loadCard(c1.id, home)
+
+  setProviderEnabled('zcode', false, home)
+
+  const readers = fakeReaders({
+    adapterNote: (agent) => agent === 'zcode'
+      ? { supported: false, note: '需要 Node ≥22（node:sqlite 内建模块）' }
+      : { supported: true, note: '' },
+    listSessions: (agent) => (agent === 'claude-code' ? [{}, {}, {}] : []) as never,
+  })
+
+  const st = buildState(readers, home)
+  assert.equal(st.pending.length, 1)
+  assert.equal(st.pending[0]?.id, c2.id)
+  assert.equal(st.pending[0]?.agent, 'codex')
+  assert.equal(st.pending[0]?.pushedAt, '2026-10-02T10:00:00+08:00')
+  assert.equal(st.archivedCount, 1)
+
+  assert.equal(st.providers.length, 8)
+  const claude = st.providers.find((p) => p.name === 'claude')
+  assert.equal(claude?.supported, true)
+  assert.equal(claude?.sessions, 3)
+  assert.equal(claude?.enabled, true)
+  const zcode = st.providers.find((p) => p.name === 'zcode')
+  assert.equal(zcode?.supported, false)
+  assert.match(zcode?.note ?? '', /Node ≥22/)
+  assert.equal(zcode?.enabled, false) // 开关停用
+  assert.equal(zcode?.sessions, -1) // 不支持的家不探测
+})
+
+test('buildState：单家探测抛错只降级该行，不拖垮整体', () => {
+  const home = freshHome()
+  const readers = fakeReaders({
+    listSessions: (agent) => {
+      if (agent === 'cursor') throw new Error('db locked')
+      return []
+    },
+  })
+  const st = buildState(readers, home)
+  const cursor = st.providers.find((p) => p.name === 'cursor')
+  assert.equal(cursor?.sessions, -1)
+  assert.equal(st.providers.filter((p) => p.sessions === 0).length, 7)
+})
+
+test('clearArchived：清空归档并返回份数；目录不存在=0 不视为错误', () => {
+  const home = freshHome()
+  assert.equal(clearArchived(home), 0)
+  const a1 = makeCard()
+  const a2 = makeCard()
+  writeCard(a1, home)
+  writeCard(a2, home)
+  loadCard(a1.id, home)
+  loadCard(a2.id, home)
+  assert.equal(clearArchived(home), 2)
+  assert.equal(buildState(fakeReaders(), home).archivedCount, 0)
+})

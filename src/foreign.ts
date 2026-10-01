@@ -18,7 +18,8 @@ import type { SessionRef, Turn } from '@agent-handoff/readers'
 export const FOREIGN_PROVIDERS = ['claude', 'codex', 'opencode', 'zcode', 'pi', 'workbuddy', 'cursor', 'grok'] as const
 export type ForeignProvider = (typeof FOREIGN_PROVIDERS)[number]
 
-const PROVIDER_TO_ADAPTER: Record<ForeignProvider, string> = {
+/** 面向用户的 provider 名 → readers 适配器名（设置卡支持矩阵同用） */
+export const PROVIDER_TO_ADAPTER: Record<ForeignProvider, string> = {
   claude: 'claude-code',
   codex: 'codex',
   opencode: 'opencode',
@@ -47,7 +48,7 @@ export interface ForeignReaders {
 let realReaders: Promise<ForeignReaders> | null = null
 
 /** 默认读取层：惰性加载 readers（模块级环境变量覆盖在首次调用前生效） */
-function defaultReaders(): Promise<ForeignReaders> {
+export function defaultForeignReaders(): Promise<ForeignReaders> {
   realReaders ??= import('@agent-handoff/readers').then((m) => ({
     listSessions: (agent) => m.listSessions(agent),
     resolve: (agent, reference) => m.resolveAgentReference(agent, reference),
@@ -250,18 +251,31 @@ function turnView(t: Turn, index: number): ForeignTurn {
 
 const LIST_DEFAULT_LIMIT = 20
 
+/** 运行时环境钩子：provider 启停闸（host 侧从设置开关注入；缺省不闸） */
+export interface ForeignEnv {
+  isEnabled?: (provider: ForeignProvider) => boolean
+}
+
+/** 停用规范错误值：与设置卡同一文案口径 */
+export const disabledError = (provider: string): string =>
+  `该 provider 已在设置中停用：${provider}（在设置 → dsh-baton 卡片可重新启用）`
+
 /**
  * 拉取核心（可脱离 cordis 单测）：deps 缺省走真实 readers。
  * 任何一步失败都回规范错误值，绝不抛出。
  */
-export async function foreignSessionRead(args: ForeignReadArgs, deps?: ForeignReaders): Promise<ForeignReadResult> {
+export async function foreignSessionRead(args: ForeignReadArgs, deps?: ForeignReaders, env?: ForeignEnv): Promise<ForeignReadResult> {
   try {
     const provider = (args.provider ?? '').trim().toLowerCase() as ForeignProvider
     if (!FOREIGN_PROVIDERS.includes(provider)) {
       return { ok: false, error: `未知 provider：${String(args.provider)}（支持：${FOREIGN_PROVIDERS.join(' / ')}）` }
     }
+    // 设置卡停用闸：先于适配器探测，关掉的家连 list 都返回规范错误值
+    if (env?.isEnabled !== undefined && !env.isEnabled(provider)) {
+      return { ok: false, error: disabledError(provider) }
+    }
     const adapter = PROVIDER_TO_ADAPTER[provider]
-    const readers = deps ?? (await defaultReaders())
+    const readers = deps ?? (await defaultForeignReaders())
 
     const note = readers.adapterNote(adapter)
     if (!note.supported) {
@@ -417,8 +431,8 @@ function tailLines(tail: string[]): string {
   return `尾部进展：\n${tail.map((t) => `- ${t}`).join('\n')}`
 }
 
-/** 注册 foreign_session_read 工具 */
-export function registerForeignTool(ctx: Context): void {
+/** 注册 foreign_session_read 工具；env.isEnabled 缺省则不闸（纯库用法） */
+export function registerForeignTool(ctx: Context, env?: ForeignEnv): void {
   ctx.tools.register(defineTool({
     name: 'foreign_session_read',
     description: '只读拉取八家外部 agent（claude / codex / opencode / zcode / pi / workbuddy / cursor / grok）的本地会话。action=list 列候选（标题/时间/轮数）；action=show 按引用（空或 latest=最新；歧义返回候选不猜）返回结构化摘要：标题、轮数、首条用户消息、尾部进展、涉及文件 top15、骨架卡六段素材；可见结果文本已含摘要与骨架六段素材全文，无需重复调用。turns 原文只在显式传 limit 时分页给（limit/offset），同样出现在可见文本里。返回 { ok, ... } 规范值。',
@@ -452,7 +466,7 @@ export function registerForeignTool(ctx: Context): void {
       render: renderForeign,
     },
     async execute(args: ForeignReadArgs) {
-      return foreignSessionRead(args)
+      return foreignSessionRead(args, undefined, env)
     },
   }))
 }

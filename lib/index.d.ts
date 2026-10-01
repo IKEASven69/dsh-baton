@@ -176,6 +176,8 @@ interface SessionRef {
 /** 面向用户的八家提供方名 → readers 适配器名（claude 是 claude-code 的别名） */
 export declare const FOREIGN_PROVIDERS: readonly ['claude', 'codex', 'opencode', 'zcode', 'pi', 'workbuddy', 'cursor', 'grok'];
 type ForeignProvider = (typeof FOREIGN_PROVIDERS)[number];
+/** 面向用户的 provider 名 → readers 适配器名（设置卡支持矩阵同用） */
+export declare const PROVIDER_TO_ADAPTER: Record<ForeignProvider, string>;
 /** 引用解析结果（与 readers ResolveResult 同构，解耦后单测可手写） */
 type ForeignResolve = {
   kind: 'resolved';
@@ -273,11 +275,17 @@ export declare function summarizeTurns(ref: SessionRef, turns: Turn[]): {
   summary: ForeignSummary;
   skeleton: ForeignSkeleton;
 };
+/** 运行时环境钩子：provider 启停闸（host 侧从设置开关注入；缺省不闸） */
+interface ForeignEnv {
+  isEnabled?: (provider: ForeignProvider) => boolean;
+}
+/** 停用规范错误值：与设置卡同一文案口径 */
+export declare const disabledError: (provider: string) => string;
 /**
  * 拉取核心（可脱离 cordis 单测）：deps 缺省走真实 readers。
  * 任何一步失败都回规范错误值，绝不抛出。
  */
-export declare function foreignSessionRead(args: ForeignReadArgs, deps?: ForeignReaders): Promise<ForeignReadResult>;
+export declare function foreignSessionRead(args: ForeignReadArgs, deps?: ForeignReaders, env?: ForeignEnv): Promise<ForeignReadResult>;
 /**
  * 渲染：execute 返回规范值对象，render 包成中文 text block。
  * dsh-tools 契约：模型只见到 output.render 返回的 content blocks；
@@ -289,8 +297,60 @@ export declare function renderForeign(_args: unknown, value: unknown): Array<{
   type: 'text';
   text: string;
 }>;
-/** 注册 foreign_session_read 工具 */
-export declare function registerForeignTool(ctx: Context): void;
+/** 注册 foreign_session_read 工具；env.isEnabled 缺省则不闸（纯库用法） */
+export declare function registerForeignTool(ctx: Context, env?: ForeignEnv): void;
+//#endregion
+//#region src/settings.d.ts
+/** 开关文件形态：只记停用名单（默认全开，未知条目载入时丢弃） */
+interface BatonSwitches {
+  disabledProviders: string[];
+}
+/** config.json 路径（HANDOFF_HOME 优先，否则 ~/.handoff） */
+export declare function switchesPath(dir?: string): string;
+/** 读开关：文件缺失/损坏一律视为默认全开 */
+export declare function loadSwitches(dir?: string): BatonSwitches;
+/** 写开关（原子性从简：单文件直写，损坏风险由 loadSwitches 兜底） */
+export declare function saveSwitches(switches: BatonSwitches, dir?: string): void;
+/** 某家是否启用（默认启用；只认八家名单内的停用条目） */
+export declare function isProviderEnabled(provider: string, dir?: string): boolean;
+/** 切某家开关并持久化；未知 provider 抛中文错（路由层转 400） */
+export declare function setProviderEnabled(provider: string, enabled: boolean, dir?: string): BatonSwitches;
+/** 收件箱概览的待取件行 */
+interface PendingRow {
+  id: string;
+  agent: string;
+  title: string;
+  project: string;
+  pushedAt: string;
+}
+/** 支持矩阵行：本机是否支持 / 发现的会话数 / 启用开关 */
+interface ProviderRow {
+  name: ForeignProvider;
+  supported: boolean;
+  /** 发现的会话数；探测失败为 -1（前端显示「—」） */
+  sessions: number;
+  enabled: boolean;
+  note: string;
+}
+interface BatonState {
+  pending: PendingRow[];
+  archivedCount: number;
+  providers: ProviderRow[];
+}
+/**
+ * 组装设置卡状态（纯函数核心，读取层与目录都可注入）：
+ * 单家探测失败只影响该行，不拖垮整体。
+ */
+export declare function buildState(readers: ForeignReaders, dir?: string): BatonState;
+/** 清空 archived/：删除全部 .md，返回清除份数（目录不存在=0，不视为错误） */
+export declare function clearArchived(dir?: string): number;
+//#endregion
+//#region src/server.d.ts
+/**
+ * 注册 /dsh-baton/ 前缀路由。webServer 是宿主可选服务（CLI 形态没有），
+ * 走 ctx.inject 缺席即跳过，不影响工具与 skill 注册面。
+ */
+export declare function registerBatonRoutes(ctx: Context): void;
 //#endregion
 //#region skills/handoff.d.ts
 /** /handoff 注册项 */
@@ -373,5 +433,5 @@ export declare const name = "dsh-baton";
 export declare const inject: string[];
 export declare function apply(ctx: Context): void;
 //#endregion
-export type { ForeignCandidate, ForeignProvider, ForeignReadArgs, ForeignReadResult, ForeignReaders, ForeignResolve, ForeignSkeleton, ForeignSummary, ForeignTurn, InboxItem, InboxListResult, InboxLoadResult, ProbeResult, PushArgs, PushResult, ResumeSkillSpec, SessionFacts };
+export type { BatonState, BatonSwitches, ForeignCandidate, ForeignEnv, ForeignProvider, ForeignReadArgs, ForeignReadResult, ForeignReaders, ForeignResolve, ForeignSkeleton, ForeignSummary, ForeignTurn, InboxItem, InboxListResult, InboxLoadResult, PendingRow, ProbeResult, ProviderRow, PushArgs, PushResult, ResumeSkillSpec, SessionFacts };
 //# sourceMappingURL=index.d.ts.map

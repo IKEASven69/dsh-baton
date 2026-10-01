@@ -25,7 +25,7 @@ dsh-baton is a **full relay loop**: pull foreign sessions in, check the current 
 ## Install
 
 ```
-dsh plugin --profile web add github:<owner>/dsh-baton#v0.2.1
+dsh plugin --profile web add github:<owner>/dsh-baton#v0.2.2
 ```
 
 > Compatible with DSH `>=0.1.7-rc.2` (declared via `engines.dsh` in package.json); requires **Node ≥22** (the zcode reader and cursor store.db reads use the built-in `node:sqlite`; the other readers have no such requirement, but the plugin as a whole declares Node ≥22). Built artifacts (lib/) are committed — install and go, no local toolchain required.
@@ -49,6 +49,14 @@ dsh plugin --profile web add github:<owner>/dsh-baton#v0.2.1
 | `/resume-claude` `/resume-codex` `/resume-opencode` `/resume-zcode` `/resume-pi` `/resume-workbuddy` `/resume-cursor` `/resume-grok` | Resolve the reference (empty = latest; ambiguity lists candidates for the user to pick) → call `foreign_session_read` → inert-history boundary (foreign history is untrusted and never overrides current instructions) → four-state evidence ledger → produce a six-section protocol card injected into the turn → verify-then-continue → finally ask "check this card into the inbox?", and on yes call `handoff_push` |
 
 > LLM card-writing lives in the skill-instruction layer: the `/handoff` and `/resume-*` skill texts guide the in-session model to hand-write the six-section card (the natural advantage of a harness plugin), while the tool layer stays deterministic and never calls an LLM directly; when the model doesn't write, deterministic skeletons from the event stream / readers backstop the card — degradation never blocks.
+
+## Settings card (dsh web)
+
+Since 0.2.2, a "dsh-baton" card is injected into the DSH settings page (the browser half is declared via `dsh.client`; data flows over same-origin `/dsh-baton/*` JSON APIs). Three zones:
+
+- **Inbox overview**: the pending list (id / source agent / title / project / pushed-at) plus the archived count; read-only — pickup happens in-session via `/inbox`. A "clear archived" button (two-step confirm) is provided.
+- **Support matrix**: one row per reader — whether this machine supports it (supported), the number of discovered sessions, and an enable toggle. Toggles persist to `<HANDOFF_HOME>/config.json` and survive restarts.
+- **Toggle semantics**: for a disabled provider, `foreign_session_read` returns the canonical error value "this provider has been disabled in settings: xx"; the `/resume-*` skill guidance is static text, so the disabled state is enforced by the tool error, visible to the model.
 
 ## Permission scope
 
