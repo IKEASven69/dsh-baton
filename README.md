@@ -33,7 +33,7 @@ dsh-takeover 是**完整的接管环**：拉取外部会话、寄存当前会话
 dsh plugin --profile web add github:IKEASven69/dsh-takeover
 ```
 
-> 兼容 DSH `>=0.1.7-rc.2`（package.json `engines.dsh` 声明），需要 **Node ≥22**（zcode 与 cursor 的 store.db 读取走 Node 内建 `node:sqlite`；其余各家无此要求，但插件整体按 Node ≥22 声明）。lib/ 产物已入库，安装即用，无需本地构建环境。
+> 需要 DSH `>=0.2.0-rc.2`（设置卡 i18n 依赖宿主 locale 服务，`engines.dsh` 同步声明），**Node ≥22**（zcode 与 cursor 的 store.db 读取走 Node 内建 `node:sqlite`；其余各家无此要求，但插件整体按 Node ≥22 声明）。lib/ 产物已入库，安装即用，无需本地构建环境。固定版本可写 `#v0.5.1`。
 
 ## 注册面
 
@@ -61,7 +61,7 @@ dsh plugin --profile web add github:IKEASven69/dsh-takeover
 
 - **命令速览**：`/handoff`、`/inbox` 与八条 `/resume-*` 直接平铺可见，停用的家灰显联动；
 - **收件箱概览**：待取件 / 已消费徽章 + 卡片列表（来源品牌图标、标题、项目、编号、时间）；行点击展开「目标」段预览（只读——取件在会话里 `/inbox` 做）；「清空已消费」按钮（二次确认）；
-- **支持矩阵**：八家读取器各一行——官方品牌图标 + 规范显示名、发现的会话数、启用开关。开关持久化在 `<HANDOFF_HOME>/config.json`，重启生效；
+- **支持矩阵**：八家读取器各一行——官方品牌图标 + 规范显示名、发现的会话数、启用开关。开关持久化在 `<HANDOFF_HOME>/config.json`——改动即刻生效（每次调用现读），并跨重启保留；
 - **开关语义**：关掉的 provider，`foreign_session_read` 对该家返回规范错误值「该 provider 已在设置中停用：xx」；/resume-* 的 skill 指引文本是静态内容，停用状态由工具报错兜住，模型可见。
 
 ## 权限范围

@@ -33,7 +33,7 @@ dsh-takeover is a **full takeover loop**: pull foreign sessions in, check the cu
 dsh plugin --profile web add github:IKEASven69/dsh-takeover
 ```
 
-> Compatible with DSH `>=0.1.7-rc.2` (declared via `engines.dsh` in package.json); requires **Node ≥22** (the zcode reader and cursor store.db reads use the built-in `node:sqlite`; the other readers have no such requirement, but the plugin as a whole declares Node ≥22). Built artifacts (lib/) are committed — install and go, no local toolchain required.
+> Requires DSH `>=0.2.0-rc.2` (the settings-card i18n uses the host locale service; declared via `engines.dsh`); **Node ≥22** (the zcode reader and cursor store.db reads use the built-in `node:sqlite`; the other readers have no such requirement, but the plugin as a whole declares Node ≥22). Built artifacts (lib/) are committed — install and go, no local toolchain required. Pin a release with `#v0.5.1`.
 
 ## Surface
 

@@ -1,6 +1,6 @@
 {
   "name": "dsh-takeover",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "会话接管插件：拉取八家外部 agent 会话（/resume-*）、把当前 DSH 会话按 handoff: 1 开放协议寄存进 ~/.handoff/pending/、开局取件接着干",
   "type": "module",
   "main": "lib/index.js",
@@ -22,6 +22,7 @@
     "cordis.patch.yml",
     "README.md",
     "README.en.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "scripts": {
@@ -32,7 +33,7 @@
   },
   "engines": {
     "node": ">=22",
-    "dsh": ">=0.1.7-rc.2"
+    "dsh": ">=0.2.0-rc.2"
   },
   "license": "MIT",
   "keywords": [
@@ -42,7 +43,11 @@
     "handoff",
     "session-handoff",
     "inbox",
-    "agent-handoff"
+    "agent-handoff",
+    "takeover",
+    "session-takeover",
+    "resume",
+    "multi-agent"
   ],
   "dsh": {
     "bundle": {
@@ -58,9 +63,9 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-agent": ">=0.1.7-rc.2",
-    "@deepseek-ai/dsh-skill": ">=0.1.7-rc.2",
-    "@deepseek-ai/dsh-tools": ">=0.1.7-rc.2",
+    "@deepseek-ai/dsh-agent": ">=0.2.0-rc.2",
+    "@deepseek-ai/dsh-skill": ">=0.2.0-rc.2",
+    "@deepseek-ai/dsh-tools": ">=0.2.0-rc.2",
     "react": "^18.2.0 || ^19.0.0",
     "@deepseek-ai/dsh-client-locale": ">=0.2.0-rc.2"
   },
@@ -91,5 +96,13 @@
     "tsdown": "^0.23.0",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/IKEASven69/dsh-takeover.git"
+  },
+  "homepage": "https://github.com/IKEASven69/dsh-takeover#readme",
+  "bugs": {
+    "url": "https://github.com/IKEASven69/dsh-takeover/issues"
   }
 }
