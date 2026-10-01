@@ -15,7 +15,8 @@ import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 // Type-only: pulls the settings shell's SlotMap merge (the 'settings.section' entry).
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
-import { BRAND_BG, BRAND_LETTERS, BRAND_PATHS, PROVIDER_LABEL } from './brand-icons.ts'
+import { BRAND_FULL_SVG, BRAND_MARKS, PROVIDER_LABEL } from './brand-icons.ts'
+import type { BrandMark } from './brand-icons.ts'
 import type { BatonState, PendingRow, ProviderRow } from './settings.ts'
 
 export const inject = ['slots']
@@ -46,22 +47,42 @@ const ICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" wi
   '</g></svg>'
 
 // ---------------------------------------------------------------------------
-// Provider 图标：官方 SVG 路径（claude/codex/cursor）白 glyph + 品牌色 tile；
-// 无官方 SVG 的五家用品牌色字母块（见 brand-icons.ts），不冒充官方图标。
+// Provider 图标：八家全部官方矢量（见 brand-icons.ts 的来源清单）。
+// 常规形态 = 官方 tile 底色 + 官方 path（fill 逐 path 保真）；
+// workbuddy = 官方完整 SVG 整体内嵌（自带渐变圆底）。
+// 未知来源（如 dsh 自己）回退中性字母块——那不是品牌冒充，是兜底。
 // ---------------------------------------------------------------------------
 
+function providerMark(name: string): BrandMark | null {
+  const m = BRAND_MARKS[name]
+  return m ?? null
+}
+
 function ProviderIcon({ name, size = 20 }: { name: string; size?: number }): ReturnType<typeof createElement> {
-  const bg = BRAND_BG[name] ?? '#52525b'
-  const path = BRAND_PATHS[name]
-  const letter = BRAND_LETTERS[name] ?? (name.charAt(0).toUpperCase() || '?')
+  const full = BRAND_FULL_SVG[name]
+  if (full !== undefined) {
+    return createElement('span', {
+      className: 'bt-icon bt-icon-full',
+      style: { width: size, height: size },
+      title: PROVIDER_LABEL[name] ?? name,
+      dangerouslySetInnerHTML: { __html: full },
+    })
+  }
+  const mark = providerMark(name)
+  if (mark === null) {
+    const letter = name.charAt(0).toUpperCase() || '?'
+    return createElement('span', {
+      className: 'bt-icon',
+      style: { background: '#52525b', width: size, height: size },
+      title: PROVIDER_LABEL[name] ?? name,
+    }, createElement('span', { className: 'bt-icon-letter' }, letter))
+  }
   return createElement('span', {
     className: 'bt-icon',
-    style: { background: bg, width: size, height: size },
+    style: { background: mark.tile, width: size, height: size },
     title: PROVIDER_LABEL[name] ?? name,
-  }, path
-    ? createElement('svg', { viewBox: '0 0 24 24', width: Math.round(size * 0.62), height: Math.round(size * 0.62), 'aria-hidden': true },
-        createElement('path', { d: path, fill: '#fff' }))
-    : createElement('span', { className: 'bt-icon-letter', style: { fontSize: letter.length > 1 ? 8.5 : 11 } }, letter),
+  }, createElement('svg', { viewBox: mark.viewBox, width: Math.round(size * 0.64), height: Math.round(size * 0.64), 'aria-hidden': true },
+    ...mark.paths.map((p, i) => createElement('path', { key: i, d: p.d, fill: p.fill }))),
   )
 }
 
@@ -126,9 +147,11 @@ const CSS = `
 .bt-cmd .bt-icon { width: 16px; height: 16px; flex: none; border-radius: 5px; }
 .bt-cmd-off { opacity: .42; }
 .bt-icon { display: inline-flex; align-items: center; justify-content: center; border-radius: 6px;
-  flex: none; box-shadow: inset 0 0 0 1px rgba(255,255,255,.14), 0 1px 2px rgba(0,0,0,.16); }
+  flex: none; overflow: hidden; box-shadow: inset 0 0 0 1px rgba(255,255,255,.14), 0 1px 2px rgba(0,0,0,.16); }
 .bt-icon svg { display: block; }
-.bt-icon-letter { color: #fff; font-weight: 700; line-height: 1; letter-spacing: -.02em; user-select: none; }
+.bt-icon-full { border-radius: 50%; }
+.bt-icon-full svg { width: 100%; height: 100%; }
+.bt-icon-letter { color: #fff; font-weight: 700; font-size: 11px; line-height: 1; letter-spacing: -.02em; user-select: none; }
 .bt-matrix { display: flex; flex-direction: column; }
 .bt-mrow { display: grid; grid-template-columns: minmax(170px, auto) 1fr auto auto; gap: 10px; align-items: center;
   padding: 7px 4px; font-size: 12.5px; border-bottom: 1px dashed var(--bt-line); border-radius: 6px;
