@@ -187,17 +187,26 @@ const CSS = `
 .bt-banner-info { color: var(--bt-mut); background: rgba(127,127,127,.08); }
 .bt-banner-err { color: var(--bt-err); background: rgba(211,47,47,.08); }
 .bt-rows { display: flex; flex-direction: column; gap: 8px; }
-.bt-pending { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 3px 10px; align-items: baseline;
-  border: 1px solid var(--bt-line); border-radius: 9px; padding: 9px 12px; font-size: 12.5px;
-  cursor: pointer; transition: border-color .15s ease, background .15s ease; }
+.bt-pending { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: flex-start;
+  border: 1px solid var(--bt-line); border-radius: 10px; padding: 10px 12px; font-size: 12.5px;
+  cursor: pointer; transition: border-color .15s ease, background .15s ease, box-shadow .15s ease; }
 .bt-pending:hover { border-color: var(--bt-a); background: var(--bt-hover); }
-.bt-pending-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bt-pending-chev { font-size: 10px; color: var(--bt-mut); transition: transform .15s ease; justify-self: end; }
+.bt-pending:focus-visible { outline: 2px solid var(--bt-a); outline-offset: -2px; }
+.bt-pend-icon { flex: none; margin-top: 1px; }
+.bt-pend-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.bt-pend-line1 { display: flex; align-items: baseline; gap: 10px; }
+.bt-pending-title { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bt-pend-time { flex: none; font-size: 11px; color: var(--bt-mut); }
+.bt-pending-chev { flex: none; font-size: 11px; color: var(--bt-mut); margin-top: 2px; transition: transform .15s ease; }
 .bt-pending-open .bt-pending-chev { transform: rotate(90deg); }
-.bt-pending-meta { font-size: 11px; color: var(--bt-mut); opacity: .85; grid-column: 1 / -1; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-.bt-src { display: inline-flex; align-items: center; gap: 4px; }
-.bt-preview { grid-column: 1 / -1; font-size: 12px; line-height: 1.65; color: inherit; opacity: .88;
-  border-left: 2px solid var(--bt-a); padding: 2px 0 2px 10px; margin-top: 4px; white-space: pre-wrap;
+.bt-pend-meta { display: flex; gap: 6px; align-items: baseline; font-size: 11px; color: var(--bt-mut);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bt-pend-src { font-weight: 500; }
+.bt-pend-dot { opacity: .5; }
+.bt-pend-id { font-family: ui-monospace, monospace; font-size: 10.5px; opacity: .72; }
+.bt-pending-open { border-color: var(--bt-a); }
+.bt-preview { flex-basis: 100%; font-size: 12px; line-height: 1.65; color: inherit; opacity: .9;
+  border-left: 2px solid var(--bt-a); padding: 2px 0 2px 10px; margin-top: 6px; white-space: pre-wrap;
   word-break: break-word; display: flex; flex-direction: column; gap: 4px; }
 .bt-preview-hint { font-size: 10.5px; color: var(--bt-mut); }
 .bt-cmds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; }
@@ -318,17 +327,24 @@ function PendingList({ rows, t, lang }: { rows: PendingRow[]; t: Translate; lang
           if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleOpen(p.id) }
         },
       },
-        createElement('span', { className: 'bt-pending-title' }, p.title !== '' ? p.title : p.id),
-        createElement('span', { className: 'bt-pending-chev' }, '▶'),
-        createElement('span', { className: 'bt-pending-meta' },
-          createElement('span', { className: 'bt-src' },
-            createElement(ProviderIcon, { name: p.agent, size: 14 }),
-            t('from', { name: PROVIDER_LABEL[p.agent] ?? p.agent }),
+        createElement('span', { className: 'bt-pend-icon' }, createElement(ProviderIcon, { name: p.agent, size: 22 })),
+        createElement('span', { className: 'bt-pend-main' },
+          createElement('span', { className: 'bt-pend-line1' },
+            createElement('span', { className: 'bt-pending-title' }, p.title !== '' ? p.title : p.id),
+            createElement('span', { className: 'bt-pend-time' }, p.pushedAt === '' ? t('noTime') : fmtTime(p.pushedAt, lang)),
           ),
-          p.project !== '' ? createElement('span', null, t('project', { name: p.project })) : null,
-          createElement('span', null, t('idLabel', { id: p.id })),
-          createElement('span', null, p.pushedAt === '' ? t('noTime') : fmtTime(p.pushedAt, lang)),
+          createElement('span', {
+            className: 'bt-pend-meta',
+            title: `${t('from', { name: '' }).trim()} · ${t('project', { name: '' }).trim()} · ${t('idLabel', { id: '' }).trim()}`,
+          },
+            createElement('span', { className: 'bt-pend-src' }, PROVIDER_LABEL[p.agent] ?? p.agent),
+            p.project !== '' ? createElement('span', { className: 'bt-pend-dot' }, '·') : null,
+            p.project !== '' ? createElement('span', null, p.project) : null,
+            createElement('span', { className: 'bt-pend-dot' }, '·'),
+            createElement('span', { className: 'bt-pend-id' }, p.id),
+          ),
         ),
+        createElement('span', { className: 'bt-pending-chev', 'aria-hidden': true }, '▸'),
         open ? createElement('div', { className: 'bt-preview', onClick: (e: Event) => e.stopPropagation() },
           createElement('span', null, p.preview !== '' ? p.preview : t('previewEmpty')),
           createElement('span', { className: 'bt-preview-hint' }, t('previewHint')),
