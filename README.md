@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/icon.svg" width="72" height="72" alt="dsh-baton logo"></p>
+
 # dsh-baton · 会话接力插件
 
 **会拉、会推、会接力：拉取八家外部 agent 会话，寄存当前会话，开局取件。**

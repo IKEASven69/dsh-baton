@@ -19,26 +19,59 @@ import type { BatonState, PendingRow, ProviderRow } from './settings.ts'
 export const inject = ['slots']
 
 // ---------------------------------------------------------------------------
-// 样式：颜色尽量继承宿主令牌（--accent/--border/--muted），兜底值保证浅色可读
+// 品牌图标：assets/icon.svg 的内联副本（改图标时两边同步）。
+// 圆角方底 + 45° 接力棒 + 中段交接条纹，渐变 #6366F1→#8B5CF6。
+// 渐变 id 加 bt- 前缀避免与宿主页面里的 defs 撞名。
+// ---------------------------------------------------------------------------
+
+const ICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="100%" height="100%" role="img" aria-label="dsh-baton">' +
+  '<defs>' +
+  '<linearGradient id="bt-bg" x1="0" y1="0" x2="1" y2="1">' +
+  '<stop offset="0" stop-color="#6366F1"/><stop offset="1" stop-color="#8B5CF6"/>' +
+  '</linearGradient>' +
+  '<linearGradient id="bt-sheen" x1="0" y1="0" x2="0" y2="1">' +
+  '<stop offset="0" stop-color="#ffffff" stop-opacity=".26"/>' +
+  '<stop offset=".55" stop-color="#ffffff" stop-opacity="0"/>' +
+  '</linearGradient>' +
+  '</defs>' +
+  '<rect x="2" y="2" width="60" height="60" rx="15" fill="url(#bt-bg)"/>' +
+  '<rect x="2" y="2" width="60" height="60" rx="15" fill="url(#bt-sheen)"/>' +
+  '<rect x="2.75" y="2.75" width="58.5" height="58.5" rx="14.25" fill="none" stroke="#ffffff" stroke-opacity=".22" stroke-width="1.5"/>' +
+  '<g transform="rotate(-45 32 32)">' +
+  '<rect x="12" y="28" width="40" height="11" rx="5.5" fill="#1e1b4b" opacity=".28"/>' +
+  '<rect x="12" y="26.5" width="40" height="11" rx="5.5" fill="#ffffff"/>' +
+  '<rect x="30" y="26.5" width="4" height="11" fill="#7c6cf8"/>' +
+  '</g></svg>'
+
+// ---------------------------------------------------------------------------
+// 样式：颜色尽量继承宿主令牌（--accent/--border/--muted），兜底值保证浅色可读；
+// 深色模式下兜底值整体换轴（prefers-color-scheme），宿主令牌在场时天然跟随主题。
 // ---------------------------------------------------------------------------
 
 const CSS = `
-.bt-panel { display: flex; flex-direction: column; gap: 14px; padding: 4px 0;
+.bt-panel { display: flex; flex-direction: column; gap: 14px; padding: 4px 0 8px;
   --bt-a: var(--accent, #2563eb); --bt-ok: #15803d; --bt-warn: #b45309; --bt-err: #d93025;
   --bt-line: var(--border, rgba(127,127,127,.28)); --bt-mut: var(--muted, rgba(127,127,127,.92));
-  --bt-card: var(--bg, rgba(127,127,127,.05)); }
+  --bt-card: var(--bg, rgba(127,127,127,.05)); --bt-hover: rgba(127,127,127,.07); }
+@media (prefers-color-scheme: dark) {
+  .bt-panel { --bt-ok: #4ade80; --bt-warn: #fbbf24; --bt-err: #f87171;
+    --bt-mut: var(--muted, rgba(255,255,255,.55)); }
+}
 .bt-card { background: var(--bt-card); border: 1px solid var(--bt-line); border-radius: 12px;
   padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
 .bt-head { display: flex; align-items: center; gap: 10px; }
-.bt-logo { width: 34px; height: 34px; border-radius: 9px; flex: none; display: grid; place-items: center;
-  background: linear-gradient(135deg, var(--bt-a), #7c3aed); color: #fff; font-weight: 800; font-size: 14px; }
+.bt-logo { width: 36px; height: 36px; border-radius: 9px; flex: none; overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,.18); }
+.bt-logo svg { display: block; }
 .bt-title { font-weight: 700; font-size: 14px; }
 .bt-sub { font-size: 12px; color: var(--bt-mut); }
 .bt-spacer { flex: 1; }
 .bt-badge { font-size: 11px; font-weight: 600; padding: 2px 10px; border-radius: 999px;
-  color: var(--bt-mut); border: 1px solid var(--bt-line); }
+  color: var(--bt-mut); background: rgba(127,127,127,.12); }
+.bt-badge-hot { color: var(--bt-a); background: rgba(99,102,241,.12); }
 .bt-btn { cursor: pointer; border-radius: 9px; font-size: 12.5px; padding: 6px 14px;
-  border: 1px solid var(--bt-line); background: transparent; color: inherit; white-space: nowrap; }
+  border: 1px solid var(--bt-line); background: transparent; color: inherit; white-space: nowrap;
+  transition: border-color .15s ease, color .15s ease, background .15s ease; }
 .bt-btn:disabled { opacity: .5; cursor: default; }
 .bt-btn:not(:disabled):hover { border-color: var(--bt-a); color: var(--bt-a); }
 .bt-btn-danger:not(:disabled):hover { border-color: var(--bt-err); color: var(--bt-err); }
@@ -47,22 +80,29 @@ const CSS = `
 .bt-banner { font-size: 12px; line-height: 1.6; border-radius: 9px; padding: 8px 12px; }
 .bt-banner-info { color: var(--bt-mut); background: rgba(127,127,127,.08); }
 .bt-banner-err { color: var(--bt-err); background: rgba(211,47,47,.08); }
-.bt-rows { display: flex; flex-direction: column; gap: 6px; }
-.bt-pending { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 2px 10px; align-items: baseline;
-  border: 1px solid var(--bt-line); border-radius: 9px; padding: 8px 11px; font-size: 12.5px; }
+.bt-rows { display: flex; flex-direction: column; gap: 8px; }
+.bt-pending { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 3px 10px; align-items: baseline;
+  border: 1px solid var(--bt-line); border-radius: 9px; padding: 9px 12px; font-size: 12.5px;
+  transition: border-color .15s ease, background .15s ease; }
+.bt-pending:hover { border-color: var(--bt-a); background: var(--bt-hover); }
 .bt-pending-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bt-pending-meta { font-size: 11px; color: var(--bt-mut); grid-column: 1 / -1; display: flex; gap: 10px; flex-wrap: wrap; }
+.bt-pending-meta { font-size: 11px; color: var(--bt-mut); opacity: .85; grid-column: 1 / -1; display: flex; gap: 10px; flex-wrap: wrap; }
 .bt-matrix { display: flex; flex-direction: column; }
 .bt-mrow { display: grid; grid-template-columns: 110px 1fr auto auto; gap: 10px; align-items: center;
-  padding: 7px 2px; font-size: 12.5px; border-bottom: 1px dashed var(--bt-line); }
+  padding: 7px 2px; font-size: 12.5px; border-bottom: 1px dashed var(--bt-line);
+  transition: opacity .15s ease; }
 .bt-mrow:last-child { border-bottom: none; }
+.bt-mrow-idle { opacity: .48; }
+.bt-mrow-idle:hover { opacity: .8; }
 .bt-mname { font-weight: 600; font-family: ui-monospace, monospace; font-size: 12px; }
 .bt-mstat { font-size: 11.5px; color: var(--bt-mut); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bt-pill { font-size: 10.5px; font-weight: 600; padding: 1px 8px; border-radius: 999px; flex: none; }
+.bt-pill { font-size: 10.5px; font-weight: 600; padding: 1px 8px; border-radius: 999px; flex: none;
+  min-width: 34px; text-align: center; box-sizing: border-box; }
 .bt-pill-ok { color: var(--bt-ok); background: rgba(21,128,61,.1); border: 1px solid rgba(21,128,61,.35); }
 .bt-pill-no { color: var(--bt-warn); background: rgba(180,83,9,.1); border: 1px solid rgba(180,83,9,.35); }
 .bt-toggle { cursor: pointer; width: 36px; height: 20px; border-radius: 999px; border: 1px solid var(--bt-line);
-  background: rgba(127,127,127,.18); position: relative; padding: 0; transition: background .15s ease, border-color .15s ease; }
+  background: rgba(127,127,127,.18); position: relative; padding: 0; justify-self: end;
+  transition: background .15s ease, border-color .15s ease; }
 .bt-toggle:disabled { opacity: .45; cursor: default; }
 .bt-toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px;
   border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: left .15s ease; }
@@ -70,6 +110,11 @@ const CSS = `
 .bt-toggle-on::after { left: 18px; }
 .bt-note { font-size: 11.5px; color: var(--bt-mut); line-height: 1.6; border-left: 2px solid var(--bt-line);
   padding-left: 10px; }
+.bt-note summary { cursor: pointer; user-select: none; list-style: none; display: flex; align-items: center; gap: 6px; }
+.bt-note summary::-webkit-details-marker { display: none; }
+.bt-note summary::before { content: '▸'; font-size: 10px; transition: transform .15s ease; }
+.bt-note[open] summary::before { transform: rotate(90deg); }
+.bt-note-body { margin-top: 6px; }
 `
 
 // ---------------------------------------------------------------------------
@@ -133,7 +178,11 @@ function ProviderMatrix({ rows, busy, onToggle }: {
 }): ReturnType<typeof createElement> {
   return createElement('div', { className: 'bt-matrix' },
     ...rows.map((r) =>
-      createElement('div', { key: r.name, className: 'bt-mrow', title: r.note !== '' ? r.note : undefined },
+      createElement('div', {
+        key: r.name,
+        className: `bt-mrow${!r.supported || r.sessions === 0 ? ' bt-mrow-idle' : ''}`,
+        title: r.note !== '' ? r.note : undefined,
+      },
         createElement('span', { className: 'bt-mname' }, r.name),
         createElement('span', { className: 'bt-mstat' },
           r.supported
@@ -199,7 +248,7 @@ function Panel(): ReturnType<typeof createElement> {
     // 头卡：标识 + 刷新
     createElement('div', { className: 'bt-card' },
       createElement('div', { className: 'bt-head' },
-        createElement('span', { className: 'bt-logo' }, '棒'),
+        createElement('span', { className: 'bt-logo', dangerouslySetInnerHTML: { __html: ICON_SVG } }),
         createElement('span', null,
           createElement('div', { className: 'bt-title' }, 'dsh-baton 会话接力'),
           createElement('div', { className: 'bt-sub' }, '交接卡片收件箱 + 八家外部 agent 会话读取器开关'),
@@ -214,8 +263,8 @@ function Panel(): ReturnType<typeof createElement> {
     createElement('div', { className: 'bt-card' },
       createElement('div', { className: 'bt-head' },
         createElement('span', { className: 'bt-title', style: { fontSize: 13 } }, '收件箱概览'),
-        createElement('span', { className: 'bt-badge' }, `pending ${state?.pending.length ?? '…'}`),
-        createElement('span', { className: 'bt-badge' }, `archived ${archivedCount}`),
+        createElement('span', { className: `bt-badge${(state?.pending.length ?? 0) > 0 ? ' bt-badge-hot' : ''}` }, `pending ${state?.pending.length ?? '…'}`),
+        createElement('span', { className: `bt-badge${archivedCount > 0 ? ' bt-badge-hot' : ''}` }, `archived ${archivedCount}`),
         createElement('span', { className: 'bt-spacer' }),
         createElement('button', {
           className: `bt-btn bt-btn-danger${confirmClear ? ' bt-btn-confirm' : ''}`,
@@ -235,9 +284,12 @@ function Panel(): ReturnType<typeof createElement> {
       state !== null
         ? createElement(ProviderMatrix, { rows: state.providers, busy, onToggle: toggle })
         : createElement('div', { className: 'bt-sub' }, '加载中…'),
-      createElement('div', { className: 'bt-note' },
-        '💡 关掉的 provider：foreign_session_read 对该家返回规范错误值「已停用」；' +
-        '/resume-* 对应 skill 的指引文本为静态内容，停用状态由工具报错兜住，模型可见。'),
+      createElement('details', { className: 'bt-note' },
+        createElement('summary', null, '💡 开关语义说明'),
+        createElement('div', { className: 'bt-note-body' },
+          '关掉的 provider：foreign_session_read 对该家返回规范错误值「已停用」；' +
+          '/resume-* 对应 skill 的指引文本为静态内容，停用状态由工具报错兜住，模型可见。' +
+          '会话数为 0 的灰色行表示该家本机未装或暂无会话，开关保留但无数据可读。')),
     ),
   )
 }

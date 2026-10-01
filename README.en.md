@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/icon.svg" width="72" height="72" alt="dsh-baton logo"></p>
+
 # dsh-baton · Session Baton Plugin
 
 **Pulls, pushes, relays: pull sessions from eight foreign agents, check in the current session, pick up on start.**
