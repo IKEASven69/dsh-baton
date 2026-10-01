@@ -1,6 +1,6 @@
 /**
  * /handoff slash skill：指示 agent 把当前会话蒸馏成六段协议卡片，
- * 然后调 handoff_push 落盘。userInvocable 而非 modelInvocable（dsh-resume 同款纪律）。
+ * 然后调 handoff_push 落盘。userInvocable 而非 modelInvocable（用户显式触发纪律）。
  * @module dsh-baton/skills/handoff
  */
 

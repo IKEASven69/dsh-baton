@@ -16,11 +16,11 @@ dsh-baton is a DeepSeek Harness (DSH) plugin implementing the full relay loop of
 
 The filesystem is the bus: dropping a card into `pending/` is delivery; picking it up moves it to `archived/` (consume-and-archive; a second pickup of the same id errors). A card = Markdown + YAML frontmatter + six Chinese body sections (目标 / 涉及文件 / 做到哪 / 还差什么 / 停在哪 / 读者警告). See the protocol repo's SPEC for the full format and semantics.
 
-## How it differs from similar plugins
+## How it differs from one-way exporters
 
 [dsh-handoff](https://www.npmjs.com/package/dsh-handoff) (v0.1.0) is a **one-way exporter**: it deterministically renders the session event stream into a HANDOFF.md document in the workspace — no inbox, no shared directory, no cross-agent pickup.
 
-dsh-resume **pulls** foreign sessions but the result evaporates after the turn — no inbox, no consumption semantics, no relay. dsh-baton pulls *and* relays: a pulled session can be checked into `~/.handoff/pending/` with one confirmation (consume-and-archive + archived audit trail), so another agent — or you on another machine — picks it up on start and continues.
+dsh-baton is a **full relay loop**: pull foreign sessions in, check the current session out, pick up on start — three verbs in one plugin. A pulled session can be checked into `~/.handoff/pending/` with one confirmation (consume-and-archive + archived audit trail), so another agent — or you on another machine — picks it up on start and continues.
 
 ## Install
 

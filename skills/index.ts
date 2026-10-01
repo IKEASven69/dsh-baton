@@ -1,5 +1,5 @@
 /**
- * bundled slash skill 注册表（dsh-resume src/skills.ts 同款模式）：
+ * bundled slash skill 注册表（数组驱动、单一模板）：
  * 一个出处返回全部注册项，src/index.ts 的 apply 逐个 ctx.skills.register。
  * @module dsh-baton/skills
  */

@@ -1,5 +1,5 @@
 /**
- * /resume-<provider> 八条 slash skill（dsh-resume src/skills.ts 同款数组驱动模式）：
+ * /resume-<provider> 八条 slash skill（数组驱动、单一模板）：
  * 解析引用 → 调 foreign_session_read → inert-history 边界 → 证据账本四态 →
  * 生成六段协议卡注入当轮 → verify-then-continue → 末尾问一句要不要寄存进收件箱。
  * userInvocable 而非 modelInvocable（slash 纪律），模型不可自行触发。

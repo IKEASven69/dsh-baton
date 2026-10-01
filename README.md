@@ -16,11 +16,11 @@ dsh-baton 是 DeepSeek Harness（DSH）插件，实现 `handoff: 1` 开放协议
 
 文件系统即总线：写入 `pending/` 就是投递，取件即移到 `archived/`（消费即弃，二次取件报错）。卡片 = Markdown + YAML frontmatter + 六段中文正文（目标 / 涉及文件 / 做到哪 / 还差什么 / 停在哪 / 读者警告），格式与语义见协议仓 SPEC。
 
-## 和同类插件的区别
+## 和单向导出工具的区别
 
 [dsh-handoff](https://www.npmjs.com/package/dsh-handoff)（v0.1.0）是**单向导出**：把会话事件流确定性导出成一份工作区里的 HANDOFF.md 文档，没有收件箱、不落共享目录、不跨 agent。
 
-dsh-resume 会**拉**外部会话，但读完即散——没有收件箱、没有消费语义、不能接力。dsh-baton 会拉还会寄存接力：拉取的会话可一键寄存进 `~/.handoff/pending/`（消费即弃 + archived 审计轨迹），另一个 agent（或另一台机器上的你）开局取件继续干。
+dsh-baton 是**完整的接力环**：拉取外部会话、寄存当前会话、开局取件三合一。拉取的会话可一键寄存进 `~/.handoff/pending/`（消费即弃 + archived 审计轨迹），另一个 agent（或另一台机器上的你）开局取件继续干。
 
 ## 安装
 
