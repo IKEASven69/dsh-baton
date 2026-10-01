@@ -28,7 +28,7 @@ export { pushHandoff, inboxList, inboxLoad, factsToSections } from './tools.ts'
 export type { PushArgs, PushResult, InboxItem, InboxListResult, InboxLoadResult } from './tools.ts'
 export { probeSessionEvents, collectFacts, todoToTasks } from './collect.ts'
 export type { ProbeResult, SessionFacts } from './collect.ts'
-export { FOREIGN_PROVIDERS, foreignSessionRead, summarizeTurns, registerForeignTool } from './foreign.ts'
+export { FOREIGN_PROVIDERS, foreignSessionRead, summarizeTurns, registerForeignTool, renderForeign } from './foreign.ts'
 export type {
   ForeignProvider,
   ForeignReadArgs,

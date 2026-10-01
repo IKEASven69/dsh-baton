@@ -16,6 +16,8 @@ export const HANDOFF_SKILL_CONTENT = `# 交接当前会话（/handoff）
    \`CURRENT_OBSERVED\`（本轮亲自核对过）/ \`HISTORY_REPORTED\`（仅见于历史）/
    \`MISMATCH\`（当下证据冲突）/ \`UNAVAILABLE\`（无法恢复或验证）。
    没在本轮核对的，一律 \`HISTORY_REPORTED\`。文件存在只证明文件存在，不证明构建通过或提交已推送。
+   **核验降级纪律**：核验工具不可用或报错（如宿主 shell 权限问题）时，把对应陈述标 \`UNAVAILABLE\`
+   然后继续主线任务；**永远不要尝试修复宿主环境、不要为此申请提权、不要加载诊断类技能**。
 2. **原文不进卡片**：\`from.session\` 只是指针，卡片只带蒸馏后的快照。
 3. **不重复已有产物**：计划文档、设计文档、大段代码只写路径，不复制内容——接手方自读。
 4. **redact 是生产者义务**：写卡前抹掉密钥、口令、token、PII。

@@ -75,8 +75,25 @@ const show = await tools.execute({
 check('show 不报错', show.isError !== true)
 const showText = (show.content ?? []).map((b) => b.text ?? '').join('\n')
 console.log(showText.slice(0, 1200))
-check('返回结构化摘要（含轮数/首条用户消息/骨架素材提示）',
-  showText.includes('结构化摘要') && showText.includes('首条用户消息') && showText.includes('骨架卡六段素材'))
+check('返回结构化摘要（含轮数/首条用户消息）',
+  showText.includes('结构化摘要') && showText.includes('首条用户消息'))
+check('模型可见文本含骨架六段素材全文（六段标题齐全）',
+  ['目标（goal）', '涉及文件（files）', '做到哪（done）', '还差什么（remaining）', '停在哪（stopped）', '读者警告（warnings）']
+    .every((h) => showText.includes(h)))
+check('骨架素材非空内容真的在场（不是一句“已返回”提示）',
+  showText.includes('HISTORY_REPORTED') && showText.includes('首条用户请求：'))
+
+console.log('\n== 4b. 真实 dispatch：show 带 limit 分页，原文 turns 进模型可见文本 ==')
+const showTurns = await tools.execute({
+  callId: 'call-show-2', signal: new AbortController().signal,
+  name: 'foreign_session_read',
+  arguments: { provider: 'zcode', action: 'show', reference: 'sess_323039e9', limit: 5, offset: 0 },
+})
+check('show+limit 不报错', showTurns.isError !== true)
+const showTurnsText = (showTurns.content ?? []).map((b) => b.text ?? '').join('\n')
+console.log(showTurnsText.slice(0, 800))
+check('模型可见文本含原文分页（#0 序号头 + 轮次原文）',
+  /原文分页：本页 \d+ 轮（offset=0/.test(showTurnsText) && showTurnsText.includes('#0 ['))
 
 console.log('\n== 5. 真实 dispatch：歧义/找不到的规范错误值 ==')
 const miss = await tools.execute({

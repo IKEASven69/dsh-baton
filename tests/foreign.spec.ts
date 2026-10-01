@@ -9,11 +9,13 @@ import {
   FOREIGN_PROVIDERS,
   RESUME_SKILL_SPECS,
   foreignSessionRead,
+  renderForeign,
   resumeSkillContent,
   skillRegistrations,
   summarizeTurns,
   type ForeignReaders,
 } from '../src/index.ts'
+import { HANDOFF_SKILL_CONTENT, INBOX_SKILL_CONTENT } from '../skills/index.ts'
 import type { SessionRef, Turn } from '@agent-handoff/readers'
 import { makeTurn } from '@agent-handoff/readers'
 
@@ -227,5 +229,73 @@ test('resume skill 内容：六条共用模板，含 inert-history / 四态账�
     assert.match(content, /handoff_push/)
     assert.match(content, /恢复边界/)
     assert.ok(content.includes(spec.recoveryBoundary), `${spec.name} 缺恢复边界文案`)
+    assert.match(content, /核验降级纪律/, `${spec.name} 缺核验降级纪律`)
+    assert.match(content, /永远不要尝试修复宿主环境/)
+    assert.match(content, /不要为此申请提权/)
+    assert.match(content, /不要加载诊断类技能/)
   }
+})
+
+test('handoff / inbox skill 内容：同款核验降级纪律', () => {
+  for (const content of [HANDOFF_SKILL_CONTENT, INBOX_SKILL_CONTENT]) {
+    assert.match(content, /核验降级纪律/)
+    assert.match(content, /永远不要尝试修复宿主环境/)
+    assert.match(content, /不要为此申请提权/)
+    assert.match(content, /不要加载诊断类技能/)
+    assert.match(content, /UNAVAILABLE/)
+  }
+})
+
+// ---------- renderForeign：模型可见文本（dsh-tools 契约：只有 render 的 content 送达模型） ----------
+
+/** renderForeign 返回的全部 text block 拼成一个文本 */
+function renderedText(value: unknown): string {
+  return renderForeign({}, value).map((b) => b.text).join('\n')
+}
+
+test('render show：模型可见文本含摘要 + 骨架六段素材全文', async () => {
+  const r = await foreignSessionRead({ provider: 'zcode', action: 'show' }, fakeReaders())
+  assert.equal(r.ok, true)
+  if (!r.ok || r.action !== 'show') return
+  const text = renderedText(r)
+  // 摘要要素
+  assert.match(text, /结构化摘要：收件箱开发/)
+  assert.match(text, /sess-aaa-1111/)
+  assert.match(text, /首条用户消息：帮我把收件箱做完/)
+  assert.match(text, /最后一条用户消息：顺便更新 README/)
+  assert.match(text, /测试全绿，README 已更新/)
+  // 骨架六段素材全文逐段在场（不能只给一句“已返回”提示）
+  for (const heading of ['目标（goal）', '涉及文件（files）', '做到哪（done）', '还差什么（remaining）', '停在哪（stopped）', '读者警告（warnings）']) {
+    assert.ok(text.includes(heading), `可见文本缺骨架段标题：${heading}`)
+  }
+  for (const k of ['goal', 'files', 'done', 'remaining', 'stopped', 'warnings'] as const) {
+    assert.ok(text.includes(r.skeleton[k]), `可见文本缺骨架段内容：${k}`)
+  }
+  assert.match(text, /HISTORY_REPORTED/)
+  // 不传 limit 时明示如何分页拉原文
+  assert.match(text, /原文未返回（共 8 轮/)
+})
+
+test('render show：显式 limit/offset 时，模型可见文本含分页 turns 原文', async () => {
+  const r = await foreignSessionRead({ provider: 'zcode', action: 'show', reference: 'sess-aaa', limit: 3, offset: 1 }, fakeReaders())
+  assert.equal(r.ok, true)
+  const text = renderedText(r)
+  assert.match(text, /原文分页：本页 3 轮（offset=1，共 8 轮/)
+  // 每轮的序号头与原文文本都在场
+  assert.match(text, /#1 \[assistant\]/)
+  assert.match(text, /#2 \[assistant\/Write\]/)
+  assert.match(text, /#3 \[assistant\/Edit\]/)
+  assert.match(text, /好的，先实现 handoff_inbox 工具。/)
+  assert.match(text, /Write: src\/tools\.ts/)
+  assert.match(text, /Edit: src\/index\.ts/)
+  // 骨架素材不受分页影响，依然全量在场
+  assert.match(text, /读者警告（warnings）/)
+})
+
+test('render 错误值：模型可见文本含失败原因与候选', async () => {
+  const r = await foreignSessionRead({ provider: 'zcode', action: 'show', reference: '收件箱' }, fakeReaders())
+  assert.equal(r.ok, false)
+  const text = renderedText(r)
+  assert.match(text, /歧义/)
+  assert.match(text, /sess-aaa-1111/)
 })

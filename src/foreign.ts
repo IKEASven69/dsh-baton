@@ -337,8 +337,14 @@ export async function foreignSessionRead(args: ForeignReadArgs, deps?: ForeignRe
   }
 }
 
-/** 渲染：execute 返回规范值对象，render 包成中文 text block */
-function renderForeign(_args: unknown, value: unknown): Array<{ type: 'text'; text: string }> {
+/**
+ * 渲染：execute 返回规范值对象，render 包成中文 text block。
+ * dsh-tools 契约：模型只见到 output.render 返回的 content blocks；
+ * execute 返回的 value JSON 是程序化字段，永不送达模型（README「The loop
+ * retains model-emitted arguments and the registry's final content」）。
+ * 所以摘要、骨架六段素材、分页 turns 原文必须全部拼进这份主文本。
+ */
+export function renderForeign(_args: unknown, value: unknown): Array<{ type: 'text'; text: string }> {
   const v = value as ForeignReadResult
   if (v.ok !== true) {
     const lines = [`❌ 拉取失败：${v.error}`]
@@ -352,7 +358,7 @@ function renderForeign(_args: unknown, value: unknown): Array<{ type: 'text'; te
     const lines = v.sessions.map((c, i) => `${i + 1}. ${c.title}｜${c.updatedAt || '（无时间）'}｜用户轮数 ${c.turns >= 0 ? c.turns : '（解析失败）'}｜id: ${c.id}`)
     return [{ type: 'text', text: `📋 ${v.provider} 会话候选 ${v.sessions.length} 条（共 ${v.total} 条，新→旧）：\n${lines.join('\n')}\n\n读取：foreign_session_read({ provider: "${v.provider}", action: "show", reference: "<id 或前缀>" })` }]
   }
-  // show
+  // show：摘要 + 骨架六段素材全文 + 分页 turns 原文全部进模型可见主文本
   const s = v.summary
   const lines = [
     `📄 ${v.provider} 会话结构化摘要：${s.title}`,
@@ -360,14 +366,48 @@ function renderForeign(_args: unknown, value: unknown): Array<{ type: 'text'; te
     s.cwd !== '' ? `工作目录：${s.cwd}` : '',
     '',
     `首条用户消息：${s.firstUserMessage || '（无）'}`,
+    s.lastUserMessage !== '' && s.lastUserMessage !== s.firstUserMessage ? `最后一条用户消息：${s.lastUserMessage}` : '',
     tailLines(s.tailProgress),
-    s.files.length > 0 ? `涉及文件 top${s.files.length}：${s.files.slice(0, 5).join('、')}${s.files.length > 5 ? ' …' : ''}` : '',
+    s.files.length > 0 ? `涉及文件 top${s.files.length}：${s.files.join('、')}` : '',
+    s.commands.length > 0 ? `执行过的命令：${s.commands.join('；')}` : '',
     '',
-    '骨架卡六段素材已返回（goal / files / done / remaining / stopped / warnings），全部按 HISTORY_REPORTED 处理。',
-    v.turns !== undefined ? `原文分页：本页 ${v.turns.length} 轮（offset=${v.turnsOffset}，共 ${v.turnsTotal} 轮）` : `原文未返回（共 ${v.turnsTotal} 轮；需要时传 limit/offset 分页拉取）`,
+    '## 骨架卡六段素材（改写六段卡的原料，全部按 HISTORY_REPORTED 处理）',
+    '### 目标（goal）',
+    v.skeleton.goal,
+    '',
+    '### 涉及文件（files）',
+    v.skeleton.files,
+    '',
+    '### 做到哪（done）',
+    v.skeleton.done,
+    '',
+    '### 还差什么（remaining）',
+    v.skeleton.remaining,
+    '',
+    '### 停在哪（stopped）',
+    v.skeleton.stopped,
+    '',
+    '### 读者警告（warnings）',
+    v.skeleton.warnings,
+    '',
+    ...(v.turns !== undefined
+      ? [
+          `## 原文分页：本页 ${v.turns.length} 轮（offset=${v.turnsOffset}，共 ${v.turnsTotal} 轮${v.turnsOffset + v.turns.length < v.turnsTotal ? '，传更大 offset 继续拉下一页' : '，已到末尾'}）`,
+          ...turnLines(v.turns),
+        ]
+      : [`原文未返回（共 ${v.turnsTotal} 轮；需要时传 limit/offset 分页拉取）`]),
     v.note !== undefined ? `⚠️ ${v.note}` : '',
   ].filter((l) => l !== '')
   return [{ type: 'text', text: lines.join('\n') }]
+}
+
+/** 分页 turns → 每轮两行（序号头 + 原文），轮间空行 */
+function turnLines(turns: ForeignTurn[]): string[] {
+  return turns.flatMap((t) => [
+    `#${t.index} [${t.role}${t.toolName !== '' ? `/${t.toolName}` : ''}${t.toolFailed ? '（失败）' : ''}]${t.ts !== '' ? ` ${t.ts}` : ''}`,
+    t.text,
+    '',
+  ])
 }
 
 function tailLines(tail: string[]): string {
@@ -379,7 +419,7 @@ function tailLines(tail: string[]): string {
 export function registerForeignTool(ctx: Context): void {
   ctx.tools.register(defineTool({
     name: 'foreign_session_read',
-    description: '只读拉取六家外部 agent（claude / codex / opencode / zcode / pi / workbuddy）的本地会话。action=list 列候选（标题/时间/轮数）；action=show 按引用（空或 latest=最新；歧义返回候选不猜）返回结构化摘要：标题、轮数、首条用户消息、尾部进展、涉及文件 top15、骨架卡六段素材；turns 原文只在显式传 limit 时分页给（limit/offset）。返回 { ok, ... } 规范值。',
+    description: '只读拉取六家外部 agent（claude / codex / opencode / zcode / pi / workbuddy）的本地会话。action=list 列候选（标题/时间/轮数）；action=show 按引用（空或 latest=最新；歧义返回候选不猜）返回结构化摘要：标题、轮数、首条用户消息、尾部进展、涉及文件 top15、骨架卡六段素材；可见结果文本已含摘要与骨架六段素材全文，无需重复调用。turns 原文只在显式传 limit 时分页给（limit/offset），同样出现在可见文本里。返回 { ok, ... } 规范值。',
     parameters: {
       provider: { type: 'string', required: true, enum: FOREIGN_PROVIDERS, description: '目标 agent 家：claude / codex / opencode / zcode / pi / workbuddy' },
       action: { type: 'string', required: true, enum: ['list', 'show'], description: 'list 列会话候选；show 读一个会话的结构化摘要' },

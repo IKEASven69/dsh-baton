@@ -278,6 +278,17 @@ export declare function summarizeTurns(ref: SessionRef, turns: Turn[]): {
  * 任何一步失败都回规范错误值，绝不抛出。
  */
 export declare function foreignSessionRead(args: ForeignReadArgs, deps?: ForeignReaders): Promise<ForeignReadResult>;
+/**
+ * 渲染：execute 返回规范值对象，render 包成中文 text block。
+ * dsh-tools 契约：模型只见到 output.render 返回的 content blocks；
+ * execute 返回的 value JSON 是程序化字段，永不送达模型（README「The loop
+ * retains model-emitted arguments and the registry's final content」）。
+ * 所以摘要、骨架六段素材、分页 turns 原文必须全部拼进这份主文本。
+ */
+export declare function renderForeign(_args: unknown, value: unknown): Array<{
+  type: 'text';
+  text: string;
+}>;
 /** 注册 foreign_session_read 工具 */
 export declare function registerForeignTool(ctx: Context): void;
 //#endregion
