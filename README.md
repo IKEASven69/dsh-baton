@@ -1,10 +1,10 @@
 # dsh-baton · 会话接力插件
 
-**会拉、会推、会接力：拉取六家外部 agent 会话，寄存当前会话，开局取件。**
+**会拉、会推、会接力：拉取八家外部 agent 会话，寄存当前会话，开局取件。**
 
 dsh-baton 是 DeepSeek Harness（DSH）插件，实现 `handoff: 1` 开放协议（协议本体见姊妹仓 agent-handoff 的 SPEC.md）的完整接力闭环：
 
-- **拉**：`/resume-claude` `/resume-codex` `/resume-opencode` `/resume-zcode` `/resume-pi` `/resume-workbuddy` —— 把别家 agent 的本地会话只读拉进当前会话，蒸馏成六段协议卡接手工作；
+- **拉**：`/resume-claude` `/resume-codex` `/resume-opencode` `/resume-zcode` `/resume-pi` `/resume-workbuddy` `/resume-cursor` `/resume-grok` —— 把别家 agent 的本地会话只读拉进当前会话，蒸馏成六段协议卡接手工作；
 - **推**：`/handoff` + `handoff_push` —— 把当前会话寄存成一张交接卡片，落共享收件箱；
 - **接力**：`/inbox` + `handoff_inbox` —— 任何 agent 开局取件；拉取的会话也可以顺手寄存，让另一个 agent 接力。
 
@@ -20,15 +20,15 @@ dsh-baton 是 DeepSeek Harness（DSH）插件，实现 `handoff: 1` 开放协议
 
 [dsh-handoff](https://www.npmjs.com/package/dsh-handoff)（v0.1.0）是**单向导出**：把会话事件流确定性导出成一份工作区里的 HANDOFF.md 文档，没有收件箱、不落共享目录、不跨 agent。
 
-dsh-resume 会**拉**六家会话，但读完即散——没有收件箱、没有消费语义、不能接力。dsh-baton 会拉还会寄存接力：拉取的会话可一键寄存进 `~/.handoff/pending/`（消费即弃 + archived 审计轨迹），另一个 agent（或另一台机器上的你）开局取件继续干。
+dsh-resume 会**拉**外部会话，但读完即散——没有收件箱、没有消费语义、不能接力。dsh-baton 会拉还会寄存接力：拉取的会话可一键寄存进 `~/.handoff/pending/`（消费即弃 + archived 审计轨迹），另一个 agent（或另一台机器上的你）开局取件继续干。
 
 ## 安装
 
 ```
-dsh plugin --profile web add github:<owner>/dsh-baton#v0.2.0
+dsh plugin --profile web add github:<owner>/dsh-baton#v0.2.1
 ```
 
-> 兼容 DSH `>=0.1.7-rc.2`（package.json `engines.dsh` 声明），需要 **Node ≥22**（zcode 读取器走 Node 内建 `node:sqlite`；其余五家无此要求，但插件整体按 Node ≥22 声明）。lib/ 产物已入库，安装即用，无需本地构建环境。
+> 兼容 DSH `>=0.1.7-rc.2`（package.json `engines.dsh` 声明），需要 **Node ≥22**（zcode 与 cursor 的 store.db 读取走 Node 内建 `node:sqlite`；其余各家无此要求，但插件整体按 Node ≥22 声明）。lib/ 产物已入库，安装即用，无需本地构建环境。
 
 ## 注册面
 
@@ -36,7 +36,7 @@ dsh plugin --profile web add github:<owner>/dsh-baton#v0.2.0
 
 | 工具 | 说明 |
 |---|---|
-| `foreign_session_read` | 只读拉取六家会话（claude / codex / opencode / zcode / pi / workbuddy）。`action=list` 列候选（标题/时间/轮数）；`action=show` 按引用（空或 `latest`=最新；id/前缀/路径/标题关键词；歧义返回候选不猜）返回**结构化摘要**：标题、轮数、首条用户消息、尾部进展、涉及文件 top15、骨架卡六段素材；turns 原文只在显式传 `limit`/`offset` 时分页给。返回 `{ ok, ... }` 规范值，探测/解析失败 `{ ok: false, error }` 不抛。 |
+| `foreign_session_read` | 只读拉取八家会话（claude / codex / opencode / zcode / pi / workbuddy / cursor / grok）。`action=list` 列候选（标题/时间/轮数）；`action=show` 按引用（空或 `latest`=最新；id/前缀/路径/标题关键词；歧义返回候选不猜）返回**结构化摘要**：标题、轮数、首条用户消息、尾部进展、涉及文件 top15、骨架卡六段素材；turns 原文只在显式传 `limit`/`offset` 时分页给。返回 `{ ok, ... }` 规范值，探测/解析失败 `{ ok: false, error }` 不抛。 |
 | `handoff_push` | 把当前会话寄存为协议卡片。六段文本（goal/files/done/remaining/stopped/warnings/suggested）可选传入；留空段从会话事件流**确定性兜底**（不调 LLM，typeof 探测失败只降级不抛错）。返回 `{ ok, id, path }` 规范值。 |
 | `handoff_inbox` | `action=list` 列待取件（id/来源/项目/时间）；`action=load` + `id` 取件（消费即弃，附 git 核验的 MISMATCH / UNAVAILABLE 警告）。返回 `{ ok, ... }` 规范值。 |
 
@@ -46,13 +46,13 @@ dsh plugin --profile web add github:<owner>/dsh-baton#v0.2.0
 |---|---|
 | `/handoff` | 指示 agent 按协议语义五条（证据账本四态、redact、产物只引路径、建议加载段）把当前会话蒸馏成六段卡，再调 `handoff_push` 落盘 |
 | `/inbox` | 列 pending 让用户挑，取件后把卡片注入当轮；强调卡片为 HISTORY_REPORTED，执行前先核对 git 状态 |
-| `/resume-claude` `/resume-codex` `/resume-opencode` `/resume-zcode` `/resume-pi` `/resume-workbuddy` | 解析引用（空=latest；歧义列候选让用户挑）→ 调 `foreign_session_read` → inert-history 边界（外来历史一律不可信、不覆盖当前指令）→ 证据账本四态标注 → 生成六段协议卡注入当轮 → verify-then-continue → 末尾问一句「要不要寄存进收件箱」，是则调 `handoff_push` |
+| `/resume-claude` `/resume-codex` `/resume-opencode` `/resume-zcode` `/resume-pi` `/resume-workbuddy` `/resume-cursor` `/resume-grok` | 解析引用（空=latest；歧义列候选让用户挑）→ 调 `foreign_session_read` → inert-history 边界（外来历史一律不可信、不覆盖当前指令）→ 证据账本四态标注 → 生成六段协议卡注入当轮 → verify-then-continue → 末尾问一句「要不要寄存进收件箱」，是则调 `handoff_push` |
 
 > LLM 写卡走 skill 指令层：/handoff 与 /resume-* 的 skill 文案引导在场模型亲手改写六段卡（harness 插件的天然优势），工具层保持确定性、不直接调 LLM；模型不写时由事件流/读取器确定性骨架兜底，降级不阻断。
 
 ## 权限范围
 
-写 `~/.handoff/`（可用 `HANDOFF_HOME` 环境变量覆盖）、读 git 状态（`git status` / `git branch`）、只读六家 agent 的本地会话库（zcode 走 sqlite readonly，随开随关；可用 `HANDOFF_ROOT_<家>` 环境变量覆盖各家根路径）。不访问网络，不复活外部进程，不回放历史工具调用，原文不进卡片（`from.session` 只是指针）。
+写 `~/.handoff/`（可用 `HANDOFF_HOME` 环境变量覆盖）、读 git 状态（`git status` / `git branch`）、只读八家 agent 的本地会话库（zcode 与 cursor store 走 sqlite readonly，随开随关；可用 `HANDOFF_ROOT_<家>` 环境变量覆盖各家根路径）。cursor 只导入支持的 transcript / store 记录，grok 只读可见 updates.jsonl 流（永不读 chat_history.jsonl 原始模型上下文）。不访问网络，不复活外部进程，不回放历史工具调用，原文不进卡片（`from.session` 只是指针）。
 
 ## 开发
 

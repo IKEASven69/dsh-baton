@@ -1,5 +1,5 @@
 /**
- * /resume-<provider> 六条 slash skill（dsh-resume src/skills.ts 同款数组驱动模式）：
+ * /resume-<provider> 八条 slash skill（dsh-resume src/skills.ts 同款数组驱动模式）：
  * 解析引用 → 调 foreign_session_read → inert-history 边界 → 证据账本四态 →
  * 生成六段协议卡注入当轮 → verify-then-continue → 末尾问一句要不要寄存进收件箱。
  * userInvocable 而非 modelInvocable（slash 纪律），模型不可自行触发。
@@ -18,7 +18,7 @@ export interface ResumeSkillSpec {
   readonly recoveryBoundary: string
 }
 
-/** 六家注册规格：单一出处，content 由模板函数生成 */
+/** 八家注册规格：单一出处，content 由模板函数生成 */
 export const RESUME_SKILL_SPECS = [
   {
     name: 'resume-claude',
@@ -62,9 +62,23 @@ export const RESUME_SKILL_SPECS = [
     description: '把一条 WorkBuddy 会话拉进当前会话，生成六段交接卡接手工作；可附会话 id、记录路径或标题关键词。',
     recoveryBoundary: '读取器只导入受支持的 WorkBuddy transcript / 存储记录，永不回放存储的调用。',
   },
+  {
+    name: 'resume-cursor',
+    provider: 'cursor',
+    product: 'Cursor',
+    description: '把一条 Cursor 会话拉进当前会话，生成六段交接卡接手工作；可附会话 id、记录路径或标题关键词。',
+    recoveryBoundary: '读取器只导入受支持的 Cursor transcript / store 记录，永不回放存储的调用。',
+  },
+  {
+    name: 'resume-grok',
+    provider: 'grok',
+    product: 'Grok',
+    description: '把一条 Grok 会话拉进当前会话，生成六段交接卡接手工作；可附会话 id、会话目录、记录路径或标题关键词。',
+    recoveryBoundary: '读取器只用 Grok 可见的 updates.jsonl 流，永不读 chat_history.jsonl 原始模型上下文。',
+  },
 ] as const satisfies readonly ResumeSkillSpec[]
 
-/** 单条 skill 内容模板：六条共用一个模板函数 */
+/** 单条 skill 内容模板：八条共用一个模板函数 */
 export function resumeSkillContent(spec: ResumeSkillSpec): string {
   const slash = `/${spec.name}`
   return `# 拉取 ${spec.product} 会话（${slash}）
@@ -152,7 +166,7 @@ export function resumeSkillRegistration(spec: ResumeSkillSpec): SkillRegistratio
   }
 }
 
-/** 六条注册项（数组驱动，与 RESUME_SKILL_SPECS 一一对应） */
+/** 八条注册项（数组驱动，与 RESUME_SKILL_SPECS 一一对应） */
 export function resumeSkillRegistrations(): SkillRegistration[] {
   return RESUME_SKILL_SPECS.map(resumeSkillRegistration)
 }

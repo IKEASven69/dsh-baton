@@ -1,7 +1,7 @@
 {
   "name": "dsh-baton",
-  "version": "0.2.0",
-  "description": "会话接力插件：拉取六家外部 agent 会话（/resume-*）、把当前 DSH 会话按 handoff: 1 开放协议寄存进 ~/.handoff/pending/、开局取件接力",
+  "version": "0.2.1",
+  "description": "会话接力插件：拉取八家外部 agent 会话（/resume-*）、把当前 DSH 会话按 handoff: 1 开放协议寄存进 ~/.handoff/pending/、开局取件接力",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

@@ -159,7 +159,7 @@ interface Turn {
 //#region src/types.d.ts
 /** 一个已发现的会话（发现层产物，轻量：不含内容）。 */
 interface SessionRef {
-  /** 归属适配器名：claude-code | codex | opencode | zcode | pi | workbuddy */
+  /** 归属适配器名：claude-code | codex | opencode | zcode | pi | workbuddy | cursor | grok */
   agent: string;
   /** 稳定 id：文件系=绝对路径；SQLite 系=会话 id。 */
   id: string;
@@ -173,8 +173,8 @@ interface SessionRef {
 }
 //#endregion
 //#region src/foreign.d.ts
-/** 面向用户的六家提供方名 → readers 适配器名（claude 是 claude-code 的别名） */
-export declare const FOREIGN_PROVIDERS: readonly ['claude', 'codex', 'opencode', 'zcode', 'pi', 'workbuddy'];
+/** 面向用户的八家提供方名 → readers 适配器名（claude 是 claude-code 的别名） */
+export declare const FOREIGN_PROVIDERS: readonly ['claude', 'codex', 'opencode', 'zcode', 'pi', 'workbuddy', 'cursor', 'grok'];
 type ForeignProvider = (typeof FOREIGN_PROVIDERS)[number];
 /** 引用解析结果（与 readers ResolveResult 同构，解耦后单测可手写） */
 type ForeignResolve = {
@@ -309,7 +309,7 @@ interface ResumeSkillSpec {
   /** 各家恢复边界文案（读取器排除什么、永不做什么） */
   readonly recoveryBoundary: string;
 }
-/** 六家注册规格：单一出处，content 由模板函数生成 */
+/** 八家注册规格：单一出处，content 由模板函数生成 */
 export declare const RESUME_SKILL_SPECS: readonly [{
   readonly name: 'resume-claude';
   readonly provider: 'claude';
@@ -346,14 +346,26 @@ export declare const RESUME_SKILL_SPECS: readonly [{
   readonly product: 'WorkBuddy';
   readonly description: '把一条 WorkBuddy 会话拉进当前会话，生成六段交接卡接手工作；可附会话 id、记录路径或标题关键词。';
   readonly recoveryBoundary: '读取器只导入受支持的 WorkBuddy transcript / 存储记录，永不回放存储的调用。';
+}, {
+  readonly name: 'resume-cursor';
+  readonly provider: 'cursor';
+  readonly product: 'Cursor';
+  readonly description: '把一条 Cursor 会话拉进当前会话，生成六段交接卡接手工作；可附会话 id、记录路径或标题关键词。';
+  readonly recoveryBoundary: '读取器只导入受支持的 Cursor transcript / store 记录，永不回放存储的调用。';
+}, {
+  readonly name: 'resume-grok';
+  readonly provider: 'grok';
+  readonly product: 'Grok';
+  readonly description: '把一条 Grok 会话拉进当前会话，生成六段交接卡接手工作；可附会话 id、会话目录、记录路径或标题关键词。';
+  readonly recoveryBoundary: '读取器只用 Grok 可见的 updates.jsonl 流，永不读 chat_history.jsonl 原始模型上下文。';
 }];
-/** 单条 skill 内容模板：六条共用一个模板函数 */
+/** 单条 skill 内容模板：八条共用一个模板函数 */
 export declare function resumeSkillContent(spec: ResumeSkillSpec): string;
-/** 六条注册项（数组驱动，与 RESUME_SKILL_SPECS 一一对应） */
+/** 八条注册项（数组驱动，与 RESUME_SKILL_SPECS 一一对应） */
 export declare function resumeSkillRegistrations(): SkillRegistration[];
 //#endregion
 //#region skills/index.d.ts
-/** 全部 bundled slash skill 注册项（/handoff /inbox + /resume-* 六条） */
+/** 全部 bundled slash skill 注册项（/handoff /inbox + /resume-* 八条） */
 export declare function skillRegistrations(): SkillRegistration[];
 //#endregion
 //#region src/index.d.ts

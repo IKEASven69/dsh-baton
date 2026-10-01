@@ -164,7 +164,7 @@ test('foreign show：解析为空附 UNAVAILABLE 说明，仍是规范 ok 值', 
 // ---------- 降级 ----------
 
 test('foreign：未知 provider / action 是规范错误值，不抛', async () => {
-  const badProvider = await foreignSessionRead({ provider: 'grok', action: 'list' }, fakeReaders())
+  const badProvider = await foreignSessionRead({ provider: 'emacs', action: 'list' }, fakeReaders())
   assert.equal(badProvider.ok, false)
   if (!badProvider.ok) assert.match(badProvider.error, /未知 provider/)
 
@@ -195,13 +195,14 @@ test('summarizeTurns：空会话不抛，各段给占位', () => {
 
 // ---------- skill 注册形态 ----------
 
-test('skill 注册面：/handoff /inbox + /resume-* 六条，共 8 条', () => {
+test('skill 注册面：/handoff /inbox + /resume-* 八条，共 10 条', () => {
   const regs = skillRegistrations()
-  assert.equal(regs.length, 8)
+  assert.equal(regs.length, 10)
   const names = regs.map((r) => r.name)
   assert.deepEqual(names, [
     'handoff', 'inbox',
     'resume-claude', 'resume-codex', 'resume-opencode', 'resume-zcode', 'resume-pi', 'resume-workbuddy',
+    'resume-cursor', 'resume-grok',
   ])
   for (const reg of regs) {
     assert.equal(reg.source, 'bundled')
@@ -211,8 +212,8 @@ test('skill 注册面：/handoff /inbox + /resume-* 六条，共 8 条', () => {
   }
 })
 
-test('resume skill 内容：六条共用模板，含 inert-history / 四态账本 / 六段 / verify / 寄存询问', () => {
-  assert.equal(RESUME_SKILL_SPECS.length, 6)
+test('resume skill 内容：八条共用模板，含 inert-history / 四态账本 / 六段 / verify / 寄存询问', () => {
+  assert.equal(RESUME_SKILL_SPECS.length, 8)
   for (const spec of RESUME_SKILL_SPECS) {
     assert.ok(FOREIGN_PROVIDERS.includes(spec.provider))
     const content = resumeSkillContent(spec)
