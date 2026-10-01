@@ -326,7 +326,7 @@ function PendingList({ rows, t, lang }: { rows: PendingRow[]; t: Translate; lang
             t('from', { name: PROVIDER_LABEL[p.agent] ?? p.agent }),
           ),
           p.project !== '' ? createElement('span', null, t('project', { name: p.project })) : null,
-          createElement('span', null, `id ${p.id}`),
+          createElement('span', null, t('idLabel', { id: p.id })),
           createElement('span', null, p.pushedAt === '' ? t('noTime') : fmtTime(p.pushedAt, lang)),
         ),
         open ? createElement('div', { className: 'bt-preview', onClick: (e: Event) => e.stopPropagation() },
@@ -421,7 +421,7 @@ function CommandsCard({ state, t }: { state: TakeoverState | null; t: Translate 
 // 渲染错误边界：任何渲染期异常直接显示在卡片里（宿主外壳会吞 React 报错，
 // 静默空白最难排查——宁可把错误亮出来）。
 type BoundaryState = { err: unknown }
-class PanelBoundary extends Component<{ children: ReturnType<typeof createElement> }, BoundaryState> {
+class PanelBoundary extends Component<{ children: ReturnType<typeof createElement>; t: Translate }, BoundaryState> {
   override state: BoundaryState = { err: null }
   static getDerivedStateFromError(err: unknown): BoundaryState { return { err } }
   override render(): ReturnType<typeof createElement> {
@@ -430,7 +430,7 @@ class PanelBoundary extends Component<{ children: ReturnType<typeof createElemen
       return createElement('div', { className: 'bt-panel' },
         createElement('style', null, CSS),
         createElement('div', { className: 'bt-card' },
-          createElement('div', { className: 'bt-title' }, 'dsh-takeover render error'),
+          createElement('div', { className: 'bt-title' }, this.props.t('renderErrorTitle')),
           createElement('pre',
             { style: { fontSize: 11, whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, lineHeight: 1.5 } },
             e.stack ?? e.message ?? String(this.state.err)),
@@ -521,8 +521,14 @@ function Panel({ t, locale }: { t: Translate; locale: LocaleRuntime | undefined 
     createElement('div', { className: 'bt-card' },
       createElement('div', { className: 'bt-head' },
         createElement('span', { className: 'bt-title', style: { fontSize: 13 } }, t('inboxTitle')),
-        createElement('span', { className: `bt-badge${(state?.pending.length ?? 0) > 0 ? ' bt-badge-hot' : ''}` }, `pending ${state?.pending.length ?? '…'}`),
-        createElement('span', { className: `bt-badge${archivedCount > 0 ? ' bt-badge-hot' : ''}` }, `archived ${archivedCount}`),
+        createElement('span', {
+          className: `bt-badge${(state?.pending.length ?? 0) > 0 ? ' bt-badge-hot' : ''}`,
+          title: t('pendingDirHint'),
+        }, t('badgePending', { n: state?.pending.length ?? '…' })),
+        createElement('span', {
+          className: `bt-badge${archivedCount > 0 ? ' bt-badge-hot' : ''}`,
+          title: t('archivedDirHint'),
+        }, t('badgeArchived', { n: archivedCount })),
         createElement('span', { className: 'bt-spacer' }),
         createElement('button', {
           className: `bt-btn bt-btn-danger${confirmClear ? ' bt-btn-confirm' : ''}`,
@@ -565,7 +571,12 @@ export function apply(ctx: Context): void {
   }
   ctx.slots.inject('settings.section', () => ctx.slots.register(
     { name: 'settings.section', id: 'dsh-takeover', order: 42, label: 'dsh-takeover' },
-    () => createElement(PanelBoundary, null,
-      createElement(Panel, { t: makeT(ctx), locale: resolveLocale(ctx) })),
+    () => {
+      const t = makeT(ctx)
+      return createElement(PanelBoundary, {
+        t,
+        children: createElement(Panel, { t, locale: resolveLocale(ctx) }),
+      })
+    },
   ))
 }

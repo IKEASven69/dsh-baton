@@ -4,6 +4,12 @@
  * （非合并表命名空间，走单语言非类型化形态）；卡片文案一律经
  * ctx.locale.bind(NS) 出来的 t() 取词，语言切换由宿主 revision 驱动重渲染。
  * 占位符用 {name} 形态，与宿主 LocaleDict 约定一致。
+ *
+ * 术语规范：
+ * - 界面词全部走词典（含 pending/archived 徽章、id 标签——协议目录名放 tooltip）；
+ * - 命令字面量（/handoff /inbox /resume-*）与工具名（foreign_session_read、
+ *   handoff_push / handoff_inbox）是可输入的标识符，不译；
+ * - 品牌词 dsh-takeover 不译。
  * @module dsh-takeover/locales
  */
 
@@ -21,12 +27,17 @@ export const zh: Record<string, string> = {
   cmdResumeDesc: '拉取 {name} 会话',
   cmdOffTitle: '{label} 已在支持矩阵停用，命令会返回「已停用」',
   inboxTitle: '收件箱概览',
-  clearArchived: '清空 archived',
+  badgePending: '待取件 {n}',
+  badgeArchived: '已消费 {n}',
+  pendingDirHint: '对应目录 ~/.handoff/pending/',
+  archivedDirHint: '对应目录 ~/.handoff/archived/',
+  clearArchived: '清空已消费',
   clearConfirm: '确认清空 {n} 张？',
-  clearArchivedTitle: '删除 archived/ 下全部已消费卡片（不可恢复）',
+  clearArchivedTitle: '删除 archived/ 目录下全部已消费卡片（不可恢复）',
   emptyInbox: '📭 收件箱为空。取件不在此进行——在会话里用 /inbox 消费即取。',
   from: '来源 {name}',
   project: '项目 {name}',
+  idLabel: '编号 {id}',
   previewEmpty: '（卡片正文为空）',
   previewHint: '—— 仅预览「目标」段；取件请回会话用 /inbox。',
   matrixTitle: '支持矩阵（八家读取器）',
@@ -45,6 +56,7 @@ export const zh: Record<string, string> = {
     '会话数为 0 的灰色行表示该家本机未装或暂无会话，开关保留但无数据可读。',
   loading: '加载中…',
   noTime: '（无时间）',
+  renderErrorTitle: 'dsh-takeover 渲染出错（把下面这段发给维护者）',
 }
 
 export const en: Record<string, string> = {
@@ -58,12 +70,17 @@ export const en: Record<string, string> = {
   cmdResumeDesc: 'Pull {name} sessions',
   cmdOffTitle: '{label} is off in the matrix; the command returns "disabled"',
   inboxTitle: 'Inbox overview',
-  clearArchived: 'Clear archived',
+  badgePending: 'Pending {n}',
+  badgeArchived: 'Consumed {n}',
+  pendingDirHint: 'maps to ~/.handoff/pending/',
+  archivedDirHint: 'maps to ~/.handoff/archived/',
+  clearArchived: 'Clear consumed',
   clearConfirm: 'Clear {n}?',
   clearArchivedTitle: 'Delete every consumed card under archived/ (irreversible)',
   emptyInbox: '📭 Inbox is empty. Pickup does not happen here — run /inbox in a session to consume.',
   from: 'from {name}',
   project: 'project {name}',
+  idLabel: 'id {id}',
   previewEmpty: '(card body is empty)',
   previewHint: '— Goal section preview only; run /inbox in a session to claim.',
   matrixTitle: 'Support matrix (8 readers)',
@@ -83,6 +100,7 @@ export const en: Record<string, string> = {
     'locally (or has no sessions yet) — the switch stays but there is nothing to read.',
   loading: 'Loading…',
   noTime: '(no time)',
+  renderErrorTitle: 'dsh-takeover render error (paste the trace below to the maintainer)',
 }
 
 /** 全部内置语言词典（register 时逐一交宿主） */
