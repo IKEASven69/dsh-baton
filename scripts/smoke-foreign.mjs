@@ -3,7 +3,7 @@
  * v0.2 实机冒烟（不开 dsh web）：用真实 cordis + dsh-tools + dsh-skill 服务
  * 进程内挂载本仓构建产物 lib/index.js，通过真实工具注册表 dispatch
  * foreign_session_read（list + show zcode sess_323039e9 前缀），并验证
- * /resume-* 六条 skill 注册形态。不 mock 任何宿主 API。
+ * /resume-* 八条 skill 注册形态。不 mock 任何宿主 API。
  *
  * 用法：node scripts/smoke-foreign.mjs
  */

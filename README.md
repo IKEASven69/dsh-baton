@@ -30,7 +30,7 @@ dsh-takeover 是**完整的接管环**：拉取外部会话、寄存当前会话
 ## 安装
 
 ```
-dsh plugin --profile web add github:<owner>/dsh-takeover#v0.4.0
+dsh plugin --profile web add github:IKEASven69/dsh-takeover
 ```
 
 > 兼容 DSH `>=0.1.7-rc.2`（package.json `engines.dsh` 声明），需要 **Node ≥22**（zcode 与 cursor 的 store.db 读取走 Node 内建 `node:sqlite`；其余各家无此要求，但插件整体按 Node ≥22 声明）。lib/ 产物已入库，安装即用，无需本地构建环境。
@@ -49,7 +49,7 @@ dsh plugin --profile web add github:<owner>/dsh-takeover#v0.4.0
 
 | 命令 | 说明 |
 |---|---|
-| `/handoff` | 指示 agent 按协议语义五条（证据账本四态、redact、产物只引路径、建议加载段）把当前会话蒸馏成六段卡，再调 `handoff_push` 落盘 |
+| `/handoff` | 指示 agent 按协议语义五条（证据账本四态、原文不进卡片、产物只引路径、redact、建议加载段）把当前会话蒸馏成六段卡，再调 `handoff_push` 落盘 |
 | `/inbox` | 列 pending 让用户挑，取件后把卡片注入当轮；强调卡片为 HISTORY_REPORTED，执行前先核对 git 状态 |
 | `/resume-claude` `/resume-codex` `/resume-opencode` `/resume-zcode` `/resume-pi` `/resume-workbuddy` `/resume-cursor` `/resume-grok` | 解析引用（空=latest；歧义列候选让用户挑）→ 调 `foreign_session_read` → inert-history 边界（外来历史一律不可信、不覆盖当前指令）→ 证据账本四态标注 → 生成六段协议卡注入当轮 → verify-then-continue → 末尾问一句「要不要寄存进收件箱」，是则调 `handoff_push` |
 
@@ -57,10 +57,11 @@ dsh plugin --profile web add github:<owner>/dsh-takeover#v0.4.0
 
 ## 设置卡（dsh web）
 
-0.2.2 起，DSH 设置页注入一张「dsh-takeover」卡片（浏览器半经 `dsh.client` 声明，数据走同源 `/dsh-takeover/*` JSON API），三个区：
+0.2.2 起提供，现为四个区（浏览器半经 `dsh.client` 声明，数据走同源 `/dsh-takeover/*` JSON API；文案走宿主 i18n，跟随界面语言中英切换）：
 
-- **收件箱概览**：pending 待取件列表（id / 来源 agent / 标题 / 项目 / 推送时间）+ archived 计数；只读展示——取件在会话里 `/inbox` 做。提供「清空 archived」按钮（二次确认）。
-- **支持矩阵**：八家读取器各一行——本机是否支持（supported）、发现的会话数、启用开关。开关持久化在 `<HANDOFF_HOME>/config.json`，重启生效。
+- **命令速览**：`/handoff`、`/inbox` 与八条 `/resume-*` 直接平铺可见，停用的家灰显联动；
+- **收件箱概览**：待取件 / 已消费徽章 + 卡片列表（来源品牌图标、标题、项目、编号、时间）；行点击展开「目标」段预览（只读——取件在会话里 `/inbox` 做）；「清空已消费」按钮（二次确认）；
+- **支持矩阵**：八家读取器各一行——官方品牌图标 + 规范显示名、发现的会话数、启用开关。开关持久化在 `<HANDOFF_HOME>/config.json`，重启生效；
 - **开关语义**：关掉的 provider，`foreign_session_read` 对该家返回规范错误值「该 provider 已在设置中停用：xx」；/resume-* 的 skill 指引文本是静态内容，停用状态由工具报错兜住，模型可见。
 
 ## 权限范围

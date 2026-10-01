@@ -1,5 +1,5 @@
 /**
- * v0.2.2 设置卡测试：
+ * 设置卡测试：
  * - 开关状态读写（loadSwitches / setProviderEnabled，临时目录隔离，不碰真实 ~/.handoff）
  * - 停用 provider 的 foreign_session_read 规范错误值
  * - buildState 组装（pending 概览 / archived 计数 / 支持矩阵）与 clearArchived

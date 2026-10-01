@@ -1,6 +1,6 @@
 /**
  * v0.2 测试：foreign_session_read 的 list / show / 歧义 / 降级，
- * 以及 /resume-* 六条 skill 的注册形态。
+ * 以及 /resume-* 八条 skill 的注册形态。
  * 读取层一律注入假货（ForeignReaders），不碰真实 ~/.claude 等目录。
  */
 import assert from 'node:assert/strict'
