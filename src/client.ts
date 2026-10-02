@@ -80,6 +80,28 @@ function langOf(locale: LocaleRuntime | undefined): Lang {
   }
 }
 
+/**
+ * 宿主主题探测：宿主主题是 CSS 模块字面色、不暴露 --muted 令牌，
+ * prefers-color-scheme 又只跟系统不跟宿主；宿主切主题换的是背景（浅=白底，
+ * 深=黑底），文字色恒定。所以按 body 背景色亮度判断明暗，给 muted /
+ * 语义色选对轴。每次渲染现算（主题切换后任意交互即校正）。
+ */
+function themeVars(): Record<string, string> {
+  let dark = true
+  try {
+    const m = getComputedStyle(document.body).backgroundColor.match(/\d+/g)
+    if (m && m.length >= 3) {
+      const [r = 0, g = 0, b = 0] = m.map(Number)
+      dark = (0.299 * r + 0.587 * g + 0.114 * b) / 255 <= 0.5
+    }
+  } catch {
+    /* 保底按深色 */
+  }
+  return dark
+    ? { '--bt-mut': 'rgba(255,255,255,.55)', '--bt-ok': '#4ade80', '--bt-warn': '#fbbf24', '--bt-err': '#f87171' }
+    : { '--bt-mut': 'rgba(30,41,59,.72)', '--bt-ok': '#15803d', '--bt-warn': '#b45309', '--bt-err': '#d93025' }
+}
+
 export const inject = ['slots', 'locale']
 
 // ---------------------------------------------------------------------------
@@ -158,12 +180,8 @@ const CSS = `
 .bt-panel { display: flex; flex-direction: column; gap: 14px; padding: 4px 0 8px;
   container-type: inline-size;
   --bt-a: var(--accent, #2563eb); --bt-ok: #15803d; --bt-warn: #b45309; --bt-err: #d93025;
-  --bt-line: var(--border, rgba(127,127,127,.28)); --bt-mut: var(--muted, rgba(127,127,127,.92));
+  --bt-line: var(--border, rgba(127,127,127,.28)); --bt-mut: rgba(30,41,59,.72);
   --bt-card: var(--bg, rgba(127,127,127,.05)); --bt-hover: rgba(127,127,127,.07); }
-@media (prefers-color-scheme: dark) {
-  .bt-panel { --bt-ok: #4ade80; --bt-warn: #fbbf24; --bt-err: #f87171;
-    --bt-mut: var(--muted, rgba(255,255,255,.55)); }
-}
 .bt-card { background: var(--bt-card); border: 1px solid var(--bt-line); border-radius: 12px;
   padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
 .bt-head { display: flex; align-items: center; gap: 10px; }
@@ -448,7 +466,7 @@ class PanelBoundary extends Component<{ children: ReturnType<typeof createElemen
   override render(): ReturnType<typeof createElement> {
     if (this.state.err !== null) {
       const e = this.state.err as { stack?: string; message?: string }
-      return createElement('div', { className: 'bt-panel' },
+      return createElement('div', { className: 'bt-panel', style: themeVars() },
         createElement('style', null, CSS),
         createElement('div', { className: 'bt-card' },
           createElement('div', { className: 'bt-title' }, this.props.t('renderErrorTitle')),
@@ -518,7 +536,7 @@ function Panel({ t, locale }: { t: Translate; locale: LocaleRuntime | undefined 
 
   const archivedCount = state?.archivedCount ?? 0
 
-  return createElement('div', { className: 'bt-panel' },
+  return createElement('div', { className: 'bt-panel', style: themeVars() },
     createElement('style', null, CSS),
 
     // 头卡：标识 + 刷新
