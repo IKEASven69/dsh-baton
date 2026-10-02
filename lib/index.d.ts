@@ -1,6 +1,6 @@
 import { Context } from "@deepseek-ai/cordis";
 import { SkillRegistration } from "@deepseek-ai/dsh-skill";
-//#region node_modules/@agent-handoff/core/dist/index.d.mts
+//#region ../agent-handoff/packages/core/dist/index.d.mts
 /** 六段正文 + 可选「建议加载」段 */
 interface CardSections {
   goal: string;
@@ -136,7 +136,7 @@ export declare function inboxLoad(id: string, opts?: {
   dir?: string;
 }): InboxLoadResult;
 //#endregion
-//#region node_modules/@agent-handoff/readers/dist/index.d.mts
+//#region ../agent-handoff/packages/readers/dist/index.d.mts
 //#region src/transcript.d.ts
 /**
  * 会话 Turn 的最小类型与 Claude transcript 解析（移植自 dsh-hippo src/patterns/transcript.ts，
