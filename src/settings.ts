@@ -141,6 +141,13 @@ export function buildState(readers: ForeignReaders, dir?: string): TakeoverState
       } catch {
         sessions = -1
       }
+      // note 在探测后重取：真实读取层的假 0 哨兵由 discover() 写回适配器 note，
+      // 只用探测前的值会漏掉本轮发现（首轮渲染即见哨兵）；假货读取层两次调用同值，无感
+      try {
+        note = readers.adapterNote(adapter).note
+      } catch {
+        /* 保留探测前的 note，不让注释查询拖垮状态组装 */
+      }
     }
     return { name, supported, sessions, enabled: !switches.disabledProviders.includes(name), note }
   })

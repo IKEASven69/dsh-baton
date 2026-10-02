@@ -1,6 +1,6 @@
 {
   "name": "dsh-takeover",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "会话接管插件：拉取八家外部 agent 会话（/resume-*）、把当前 DSH 会话按 handoff: 1 开放协议寄存进 ~/.handoff/pending/、开局取件接着干",
   "type": "module",
   "main": "lib/index.js",
@@ -89,6 +89,7 @@
     "@deepseek-ai/dsh-host-webserver": "0.2.0-rc.2",
     "@deepseek-ai/dsh-skill": "0.2.0-rc.2",
     "@deepseek-ai/dsh-tools": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-user-questions": "0.2.0-rc.2",
     "@types/node": "^26.6.3",
     "@types/react": "~19.3.0",
     "esbuild": "^0.28.2",

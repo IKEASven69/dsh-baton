@@ -179,6 +179,23 @@ test('buildState：单家探测抛错只降级该行，不拖垮整体', () => {
   assert.equal(st.providers.filter((p) => p.sessions === 0).length, 7)
 })
 
+test('buildState：note 在探测后重取——discover 写回的假 0 哨兵首轮渲染即见', () => {
+  const home = freshHome()
+  // 模拟真实读取层：listSessions（discover）把假 0 哨兵写回适配器 note
+  const notes = new Map<string, string>()
+  const readers = fakeReaders({
+    adapterNote: (agent) => ({ supported: true, note: notes.get(agent) ?? '' }),
+    listSessions: (agent) => {
+      notes.set(agent, '存储目录存在但未发现会话——上游可能已迁移存储布局（参考 opencode 1.18 迁 SQLite）')
+      return []
+    },
+  })
+  const st = buildState(readers, home)
+  const claude = st.providers.find((p) => p.name === 'claude')
+  assert.match(claude?.note ?? '', /存储目录存在但未发现会话/)
+  assert.equal(claude?.sessions, 0)
+})
+
 test('clearArchived：清空归档并返回份数；目录不存在=0 不视为错误', () => {
   const home = freshHome()
   assert.equal(clearArchived(home), 0)

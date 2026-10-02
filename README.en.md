@@ -27,13 +27,27 @@ The filesystem is the bus: dropping a card into `pending/` is delivery; picking 
 
 dsh-takeover is a **full takeover loop**: pull foreign sessions in, check the current session out, pick up on start — three verbs in one plugin. A pulled session can be checked into `~/.handoff/pending/` with one confirmation (consume-and-archive + archived audit trail), so another agent — or you on another machine — picks it up on start and continues.
 
+## Competitors and how we differ
+
+Lookalike projects have been appearing since 2026-09 (research notes: [docs/竞品动态-1003.md](./docs/竞品动态-1003.md), in Chinese). The one-sentence mechanical distinction: **they do "convert, then natively resume in another CLI", "cross-device sync", or "navigation/search"; we do in-harness takeover** —
+
+- vs [casr](https://github.com/Dicklesworthstone/cross_agent_session_resumer): casr converts sessions into a canonical model and hands them to another CLI's native `resume`; the conversion layer breaks wholesale when an upstream storage layout moves (its #26 was hit by exactly that — opencode migrating to SQLite). We **read foreign sessions into the current session** and distill a card — we never write to the foreign session and never depend on the other CLI's resume, so we are immune by construction to corrupted-conversion failures (its #10).
+- vs [agentctxsync](https://github.com/westsource/agentctxsync): it syncs agent context across devices; cross-machine relay here is one env var away (next section) — the core difference remains takeover's audit semantics.
+- vs [aisle](https://github.com/mashkovd/aisle): it discovers, normalizes and full-text-searches sessions across agents (navigation); we don't do search — we do work continuity after takeover.
+
+dsh-takeover's niche: **in-harness takeover** (six-section protocol card injected into the live turn — the model just continues) + **four-state auditing** (the CURRENT_OBSERVED / HISTORY_REPORTED / MISMATCH / UNAVAILABLE evidence ledger — historical claims never masquerade as present fact) + **async inbox relay** (`~/.handoff/pending/`, the filesystem is the bus). And it is **read-only against every foreign session store**.
+
+## Cross-machine relay
+
+Point `HANDOFF_HOME` at a synced-drive folder or a git repository and the inbox is shared across machines: `handoff_push` on machine A, `/inbox` pickup on machine B. One environment variable, zero code.
+
 ## Install
 
 ```
 dsh plugin --profile web add github:IKEASven69/dsh-takeover
 ```
 
-> Requires DSH `>=0.2.0-rc.2` (the settings-card i18n uses the host locale service; declared via `engines.dsh`); **Node ≥22** (the zcode reader and cursor store.db reads use the built-in `node:sqlite`; the other readers have no such requirement, but the plugin as a whole declares Node ≥22). Built artifacts (lib/) are committed — install and go, no local toolchain required. Pin a release with `#v0.5.1`.
+> Requires DSH `>=0.2.0-rc.2` (the settings-card i18n uses the host locale service; declared via `engines.dsh`); **Node ≥22** (the zcode reader, cursor store.db reads, and new-layout opencode.db reads use the built-in `node:sqlite`; opencode's legacy file layout and the other readers have no such requirement, but the plugin as a whole declares Node ≥22). Built artifacts (lib/) are committed — install and go, no local toolchain required. Pin a release with `#v0.1.0` (version numbering restarted at 0.1.0; git tags are provided per release).
 
 ## Surface
 

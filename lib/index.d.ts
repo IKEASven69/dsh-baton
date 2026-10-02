@@ -1,4 +1,5 @@
 import { Context } from "@deepseek-ai/cordis";
+import { Agent } from "@deepseek-ai/dsh-agent";
 import { SkillRegistration } from "@deepseek-ai/dsh-skill";
 //#region ../agent-handoff/packages/core/dist/index.d.mts
 /** 六段正文 + 可选「建议加载」段 */
@@ -135,6 +136,17 @@ type InboxLoadResult = {
 export declare function inboxLoad(id: string, opts?: {
   dir?: string;
 }): InboxLoadResult;
+/** 寄存/取件后的宿主通知（docs/需求调研-1003.md P2-3）：
+ * DSH 宿主无 toast / 系统通知的插件挂点，最接近形态是 ctx.userQuestions.ask
+ * 的阻塞式问答面板（规范调用样例：dsh-tool-ask-user，agent: exec.agent + signal: exec.signal）。
+ * 尽力而为，绝不阻断寄存/取件主流程：
+ * - 服务缺席（旧宿主）→ safeUserQuestions 返 undefined，直接跳过；
+ * - Web 客户端离线 / 会话无 open turn（NO_PROVIDER）、subagent 持有 agent（DELEGATED_CALLER）、
+ *   中止（ASK_ABORTED）→ ask reject，静默降级为工具结果文本。 */
+export declare function handoffHostNotice(userQuestions: unknown, action: 'push' | 'load', id: string, exec?: {
+  agent?: Agent;
+  signal?: AbortSignal;
+}): Promise<void>;
 //#endregion
 //#region ../agent-handoff/packages/readers/dist/index.d.mts
 //#region src/transcript.d.ts

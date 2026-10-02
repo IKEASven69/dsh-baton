@@ -11,6 +11,10 @@ import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-skill'
+// Type-only：触发 Context 声明合并（ctx.userQuestions: UserQuestionService）。
+// 运行时由宿主提供；旧宿主缺席走 safeUserQuestions 防御降级，绝不阻断主流程。
+import type {} from '@deepseek-ai/dsh-user-questions'
+import type { AskUserQuestionRequest } from '@deepseek-ai/dsh-user-questions'
 import {
   collectGitSnapshot,
   generateId,
@@ -264,6 +268,49 @@ function sessionOf(exec: { agent?: Agent } | undefined): unknown {
   return exec?.agent?.session ?? null
 }
 
+/** 寄存/取件后的宿主通知（docs/需求调研-1003.md P2-3）：
+ * DSH 宿主无 toast / 系统通知的插件挂点，最接近形态是 ctx.userQuestions.ask
+ * 的阻塞式问答面板（规范调用样例：dsh-tool-ask-user，agent: exec.agent + signal: exec.signal）。
+ * 尽力而为，绝不阻断寄存/取件主流程：
+ * - 服务缺席（旧宿主）→ safeUserQuestions 返 undefined，直接跳过；
+ * - Web 客户端离线 / 会话无 open turn（NO_PROVIDER）、subagent 持有 agent（DELEGATED_CALLER）、
+ *   中止（ASK_ABORTED）→ ask reject，静默降级为工具结果文本。 */
+export async function handoffHostNotice(
+  userQuestions: unknown,
+  action: 'push' | 'load',
+  id: string,
+  exec?: { agent?: Agent; signal?: AbortSignal },
+): Promise<void> {
+  if (userQuestions === null || typeof userQuestions !== 'object') return
+  const ask = (userQuestions as { ask?: unknown }).ask
+  if (typeof ask !== 'function') return
+  const pushed = action === 'push'
+  const request: AskUserQuestionRequest = {
+    questions: [{
+      id: pushed ? 'handoff-pushed' : 'handoff-picked',
+      question: pushed ? `已寄存会话卡片 handoff:${id}，需继续吗？` : `已取件会话卡片 handoff:${id}，需继续吗？`,
+      options: [{ label: '继续' }],
+    }],
+    ...(exec?.agent !== undefined ? { agent: exec.agent } : {}),
+    signal: exec?.signal,
+  }
+  try {
+    await (ask as (req: AskUserQuestionRequest) => Promise<unknown>).call(userQuestions, request)
+  } catch {
+    // NO_PROVIDER / DELEGATED_CALLER / ASK_ABORTED / 无 open turn：通知降级，主流程照常
+  }
+}
+
+/** 防御式取 ctx.userQuestions：cordis 对未挂载服务的属性访问会直接 throw（client.ts resolveLocale 同款） */
+function safeUserQuestions(ctx: Context): unknown {
+  try {
+    const uq: unknown = ctx.userQuestions
+    return uq
+  } catch {
+    return undefined
+  }
+}
+
 /** 注册 handoff_push 工具 */
 export function registerPushTool(ctx: Context): void {
   ctx.tools.register(defineTool({
@@ -297,8 +344,11 @@ export function registerPushTool(ctx: Context): void {
       },
       render: renderPush,
     },
-    async execute(args: PushArgs, exec: { agent?: Agent }) {
-      return pushHandoff(sessionOf(exec), args)
+    async execute(args: PushArgs, exec: { agent?: Agent; signal?: AbortSignal }) {
+      const result = pushHandoff(sessionOf(exec), args)
+      // 寄存成功后的宿主通知（阻塞式问答面板；服务缺席/客户端离线静默降级）
+      if (result.ok) await handoffHostNotice(safeUserQuestions(ctx), 'push', result.id, exec)
+      return result
     },
   }))
 }
@@ -329,9 +379,14 @@ export function registerInboxTool(ctx: Context): void {
       },
       render: renderInbox,
     },
-    async execute(args: { action?: string; id?: string }, _exec: { agent?: Agent }) {
+    async execute(args: { action?: string; id?: string }, exec: { agent?: Agent; signal?: AbortSignal }) {
       if (args.action === 'list') return inboxList()
-      if (args.action === 'load') return inboxLoad(args.id ?? '')
+      if (args.action === 'load') {
+        const result = inboxLoad(args.id ?? '')
+        // 取件成功后的宿主通知（同 push：阻塞式问答面板，失败静默降级）
+        if (result.ok) await handoffHostNotice(safeUserQuestions(ctx), 'load', result.id, exec)
+        return result
+      }
       return { ok: false, error: `未知 action：${String(args.action)}（支持 list / load）` }
     },
   }))

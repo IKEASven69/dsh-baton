@@ -28,7 +28,7 @@ export function apply(ctx: Context): void {
   ctx.logger.info('dsh-takeover: 会话接管已加载（工具 handoff_push / handoff_inbox / foreign_session_read + slash /handoff /inbox /resume-*×8 + 设置卡 API /dsh-takeover/*）')
 }
 
-export { pushHandoff, inboxList, inboxLoad, factsToSections } from './tools.ts'
+export { pushHandoff, inboxList, inboxLoad, factsToSections, handoffHostNotice } from './tools.ts'
 export type { PushArgs, PushResult, InboxItem, InboxListResult, InboxLoadResult } from './tools.ts'
 export { probeSessionEvents, collectFacts, todoToTasks } from './collect.ts'
 export type { ProbeResult, SessionFacts } from './collect.ts'

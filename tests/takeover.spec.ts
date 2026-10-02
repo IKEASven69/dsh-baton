@@ -10,6 +10,7 @@ import test from 'node:test'
 import { parseCard, loadCard, listPending, listArchived } from '@agent-handoff/core'
 import {
   collectFacts,
+  handoffHostNotice,
   inboxList,
   inboxLoad,
   probeSessionEvents,
@@ -214,4 +215,37 @@ test('核心层二次取件直接调用也报错（消费即弃协议语义）',
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
+})
+
+// ---------- 宿主通知（ctx.userQuestions 阻塞式问答面板） ----------
+
+test('宿主通知：push/load 各用规范问题 id 与文案，agent/signal 透传', async () => {
+  const calls: Array<{ id: string; question: string; agent?: unknown; signal?: unknown }> = []
+  const uq = {
+    ask: async (req: { questions: Array<{ id: string; question: string }>; agent?: unknown; signal?: unknown }) => {
+      for (const q of req.questions) calls.push({ id: q.id, question: q.question, agent: req.agent, signal: req.signal })
+      return { answers: [] }
+    },
+  }
+  const agent = { session: null } as never
+  const controller = new AbortController()
+  await handoffHostNotice(uq, 'push', 'ho-abc-123', { agent, signal: controller.signal })
+  await handoffHostNotice(uq, 'load', 'ho-def-456', { agent, signal: controller.signal })
+  assert.equal(calls.length, 2)
+  assert.equal(calls[0]?.id, 'handoff-pushed')
+  assert.match(calls[0]?.question ?? '', /已寄存会话卡片 handoff:ho-abc-123/)
+  assert.equal(calls[1]?.id, 'handoff-picked')
+  assert.match(calls[1]?.question ?? '', /已取件会话卡片 handoff:ho-def-456/)
+  assert.equal(calls[0]?.agent, agent)
+  assert.equal(calls[0]?.signal, controller.signal)
+})
+
+test('宿主通知：服务缺席/形态不符/ask 抛错（NO_PROVIDER、DELEGATED_CALLER）都静默不抛', async () => {
+  // 服务缺席（undefined / null / 非 ask 对象）
+  await handoffHostNotice(undefined, 'push', 'ho-x', {})
+  await handoffHostNotice(null, 'push', 'ho-x', {})
+  await handoffHostNotice({ noAsk: true }, 'push', 'ho-x', {})
+  // ask reject（NO_PROVIDER / DELEGATED_CALLER / ASK_ABORTED）
+  await handoffHostNotice({ ask: async () => { throw new Error('NO_PROVIDER') } }, 'push', 'ho-x', {})
+  await handoffHostNotice({ ask: async () => { throw new Error('DELEGATED_CALLER') } }, 'load', 'ho-x', {})
 })

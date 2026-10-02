@@ -2,6 +2,23 @@
 
 > **版本体系重置（2026-10-01）**：0.1–0.5 时期的版本号随开发过程推进过快、颗粒度失真，经用户要求自本日起**重置为 0.1.0 重新起算**——0.1.0 = 当前功能全集（八家拉取 / 交接寄存 / 收件箱取件 / 设置卡四区 / 双语 i18n / 八家品牌图标）经完整真用户流测试通过后的首个版本。此前的版本号历史见文末归档，仅作记录，不再构成发布序列。
 
+## [0.2.0] — 未发布（待发布）
+
+### 新增
+- **假 0 哨兵 + 浮出**：读取器存储根目录存在但 discover 为 0 时，适配器 note 置「存储目录存在但未发现会话——上游可能已迁移存储布局（参考 opencode 1.18 迁 SQLite）」；设置卡支持矩阵行在 supported 且 note 非空时以橙色小字行内浮出（title 悬浮与 aria-description 同步），不再静默 0。哨兵本体在 agent-handoff readers（codex / cursor / grok + opencode storage 回退路径；有数据的家 note 保持空），随构建打包
+- **空 cwd 警告**：外来会话未记录工作区目录时，`foreign_session_read` 骨架卡「读者警告」段追加「⚠ 该会话未记录工作区目录，接手前先确认目录」；/resume-* skill 的 verify-then-continue 段补同款规则（casr #20 同类）
+- **设置卡自动刷新**：面板挂载后每 30s 自动拉取 `/dsh-takeover/state`，仅 `document.visibilityState === 'visible'` 时拉取；卸载清理 interval；手动刷新按钮保留
+- **寄存/取件后的宿主通知**：`handoff_push` / `handoff_inbox`(load) 成功后经 `ctx.userQuestions.ask` 弹阻塞式问答面板（「已寄存/已取件会话卡片 handoff:<id>，需继续吗？」）。服务缺席（旧宿主）、客户端离线（NO_PROVIDER）、subagent 持有 agent（DELEGATED_CALLER）一律静默降级为工具结果文本，不阻断主流程。待实机验证：离线/无 open turn 时 ask 的实际行为
+- README 双语新增「竞品与差异化」「跨机器接力」小节（竞品调研底稿 docs/竞品动态-1003.md；`HANDOFF_HOME` 指向同步盘/git 仓库即多机接力，一句配置零代码）
+- agent-handoff 协议仓 README 顶部 handoff: 1 协议声明 + 采用登记节（版本化开放协议；采用者 issue 登记；与 JarvanAI 同名仓无关联的澄清，中英同步）
+
+### 修正
+- README 安装说明两处话术残留：node:sqlite 要点名补上新版 opencode.db（0.1.1 起，旧文案只写 zcode/cursor）；「固定版本可写 `#v0.5.1`」指向重置前已不存在的 tag，改为真实存在的 `#v0.1.0`
+
+### 依赖
+- devDependencies 增 `@deepseek-ai/dsh-user-questions@0.2.0-rc.2`（仅类型消费：触发 Context 声明合并；运行时服务由宿主提供，缺席走防御降级）
+- `@agent-handoff/readers` 随构建更新（假 0 哨兵）
+
 ## [0.1.1] — 2026-10-02
 
 ### 修正

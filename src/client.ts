@@ -252,9 +252,12 @@ const CSS = `
 .bt-mrow:last-child { border-bottom: none; }
 .bt-mrow-idle { opacity: .48; }
 .bt-mrow-idle:hover { opacity: .8; }
+.bt-mname-col { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .bt-mname-wrap { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .bt-mname { font-weight: 600; font-size: 12.5px; white-space: nowrap; }
 .bt-mid { font-family: ui-monospace, monospace; font-size: 10.5px; color: var(--bt-mut); opacity: .75; }
+/* 假 0 哨兵浮出：supported 且 note 非空时行内橙色小字（不只放 title），与 --bt-warn 同轴 */
+.bt-mnote { font-size: 10.5px; line-height: 1.5; color: var(--bt-warn); max-width: 360px; overflow-wrap: anywhere; }
 .bt-mstat { font-size: 11.5px; color: var(--bt-mut); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bt-pill { font-size: 10.5px; font-weight: 600; padding: 1px 8px; border-radius: 999px; flex: none;
   min-width: 34px; text-align: center; box-sizing: border-box; }
@@ -386,15 +389,22 @@ function ProviderMatrix({ rows, busy, onToggle, t }: {
   return createElement('div', { className: 'bt-matrix' },
     ...rows.map((r) => {
       const label = PROVIDER_LABEL[r.name] ?? r.name
+      // 假 0 哨兵浮出：supported 且 note 非空（布局迁移提示等）→ 行内橙色小字 +
+      // title 悬浮 + aria-description，三处同源；unsupported 行仍走 stat 列的 unsupportedNote
+      const showNote = r.supported && r.note !== ''
       return createElement('div', {
         key: r.name,
         className: `bt-mrow${!r.supported || r.sessions === 0 ? ' bt-mrow-idle' : ''}`,
         title: r.note !== '' ? r.note : undefined,
+        'aria-description': showNote ? r.note : undefined,
       },
-        createElement('span', { className: 'bt-mname-wrap' },
-          createElement(ProviderIcon, { name: r.name }),
-          createElement('span', { className: 'bt-mname' }, label),
-          createElement('span', { className: 'bt-mid' }, r.name),
+        createElement('span', { className: 'bt-mname-col' },
+          createElement('span', { className: 'bt-mname-wrap' },
+            createElement(ProviderIcon, { name: r.name }),
+            createElement('span', { className: 'bt-mname' }, label),
+            createElement('span', { className: 'bt-mid' }, r.name),
+          ),
+          showNote ? createElement('span', { className: 'bt-mnote' }, r.note) : null,
         ),
         createElement('span', { className: 'bt-mstat' },
           r.supported
@@ -511,6 +521,19 @@ function Panel({ t, locale }: { t: Translate; locale: LocaleRuntime | undefined 
     )
   }
   useEffect(reload, [])
+  // 每 30s 自动刷新：仅面板前台可见时拉取（后台标签页不白跑请求）；
+  // 卸载清 interval；手动刷新按钮（头卡）保留，两者共用同一 reload。
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      try {
+        if (document.visibilityState === 'visible') reload()
+      } catch {
+        /* visibilityState 不可得（非浏览器环境）：跳过本轮 */
+      }
+    }, 30_000)
+    return () => { window.clearInterval(timer) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload 只闭包 setState，挂载期稳定
+  }, [])
 
   const toggle = (name: string, enabled: boolean): void => {
     setBusy(name)

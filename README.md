@@ -27,13 +27,27 @@ dsh-takeover 是 DeepSeek Harness（DSH）插件，实现 `handoff: 1` 开放协
 
 dsh-takeover 是**完整的接管环**：拉取外部会话、寄存当前会话、开局取件三合一。拉取的会话可一键寄存进 `~/.handoff/pending/`（消费即弃 + archived 审计轨迹），另一个 agent（或另一台机器上的你）开局取件继续干。
 
+## 竞品与差异化
+
+2026-09 以来同类项目集中出现（调研底稿见 [docs/竞品动态-1003.md](./docs/竞品动态-1003.md)）。机制上的一句话区分：**他们做「转换后换一家 CLI 原生续跑」「跨设备同步」或「导航搜索」，我们做 harness 内接管**——
+
+- vs [casr](https://github.com/Dicklesworthstone/cross_agent_session_resumer)：casr 把会话转成规范模型后交给别家 CLI 原生 `resume`，转换层一旦跟不上上游存储布局变化就会整体失效（其 #26 即 opencode 迁 SQLite 中招）；我们把外来会话**只读拉进当前会话**蒸馏成卡，不写对方会话、不依赖对方 CLI 的 resume 能力，天然免疫转换产物损坏一类事故（其 #10）。
+- vs [agentctxsync](https://github.com/westsource/agentctxsync)：它做跨设备上下文同步；跨机器接力我们一句配置即得（见下节），核心差异仍在接管的审计语义。
+- vs [aisle](https://github.com/mashkovd/aisle)：它做跨 agent 会话的发现、规范化与全文搜索（导航定位）；我们不做搜索，做接管后的工作连续性。
+
+dsh-takeover 的生态位：**harness 内接管**（六段协议卡注入当轮，模型直接接着干）+ **四态审计**（CURRENT_OBSERVED / HISTORY_REPORTED / MISMATCH / UNAVAILABLE 证据账本，历史陈述不冒充当下事实）+ **收件箱异步接力**（`~/.handoff/pending/` 文件系统即总线）。且全程**只读不写对方会话**。
+
+## 跨机器接力
+
+`HANDOFF_HOME` 指向同步盘目录或 git 仓库，收件箱即多机共享：A 机器 `handoff_push` 寄存，B 机器开局 `/inbox` 取件接力。一句环境变量配置，零代码。
+
 ## 安装
 
 ```
 dsh plugin --profile web add github:IKEASven69/dsh-takeover
 ```
 
-> 需要 DSH `>=0.2.0-rc.2`（设置卡 i18n 依赖宿主 locale 服务，`engines.dsh` 同步声明），**Node ≥22**（zcode 与 cursor 的 store.db 读取走 Node 内建 `node:sqlite`；其余各家无此要求，但插件整体按 Node ≥22 声明）。lib/ 产物已入库，安装即用，无需本地构建环境。固定版本可写 `#v0.5.1`。
+> 需要 DSH `>=0.2.0-rc.2`（设置卡 i18n 依赖宿主 locale 服务，`engines.dsh` 同步声明），**Node ≥22**（zcode 与 cursor 的 store.db、新版 opencode 的 opencode.db 读取走 Node 内建 `node:sqlite`；opencode 旧版文件布局与其余各家无此要求，但插件整体按 Node ≥22 声明）。lib/ 产物已入库，安装即用，无需本地构建环境。固定版本可写 `#v0.1.0`（版本体系 0.1.0 重置起算，git tag 随版本提供）。
 
 ## 注册面
 

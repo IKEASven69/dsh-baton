@@ -193,6 +193,16 @@ test('summarizeTurns：空会话不抛，各段给占位', () => {
   assert.match(skeleton.stopped, /空会话/)
 })
 
+test('summarizeTurns：cwd 为空时骨架 warnings 追加确认目录警告，有 cwd 则不追加', () => {
+  // ref() 缺省 cwd: '' → 警告在场
+  const empty = summarizeTurns(ref({ id: 'x', agent: 'pi' }), TURNS)
+  assert.match(empty.skeleton.warnings, /该会话未记录工作区目录，接手前先确认目录/)
+  // 有 cwd → 不追加
+  const withCwd = summarizeTurns(ref({ id: 'x', agent: 'pi', cwd: 'D:\\proj' }), TURNS)
+  assert.doesNotMatch(withCwd.skeleton.warnings, /未记录工作区目录/)
+  assert.match(withCwd.skeleton.warnings, /HISTORY_REPORTED/) // 基线警告不受影响
+})
+
 // ---------- skill 注册形态 ----------
 
 test('skill 注册面：/handoff /inbox + /resume-* 八条，共 10 条', () => {

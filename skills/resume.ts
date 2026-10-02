@@ -139,6 +139,7 @@ export function resumeSkillContent(spec: ResumeSkillSpec): string {
 
 改动任何东西之前：确认当前 DSH 工作目录与仓库根；查 git 分支与 staged/unstaged 状态；
 重读点名的文件；重跑最小的过期 / 缺失检查。把冲突记进证据账本。
+会话摘要的 cwd 为空（未记录工作区目录）时，**先向用户确认目录再动手**——不要默认当前目录就是它。
 停点与下一步无歧义时才用本会话的工具继续；否则先问一个聚焦问题。
 slash 调用永不复活旧审批与外部运行时权限。
 
