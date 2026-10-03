@@ -8,9 +8,9 @@
  * @module dsh-takeover/settings
  */
 
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { archivedDir, listArchived, listPending, resolveHome } from '@agent-handoff/core'
+import { archivedDir, listPendingReport, resolveHome } from '@agent-handoff/core'
 import { FOREIGN_PROVIDERS, PROVIDER_TO_ADAPTER, type ForeignProvider, type ForeignReaders } from './foreign.ts'
 
 // 停用规范错误值文案在 foreign.ts（disabledError），本模块只管开关存取与状态组装
@@ -25,7 +25,8 @@ export function switchesPath(dir?: string): string {
   return join(resolveHome(dir), 'config.json')
 }
 
-/** 读开关：文件缺失/损坏一律视为默认全开 */
+/** 读开关：文件缺失/损坏一律视为默认全开（fail-open 是有文档的取舍），
+ * 但损坏必须告警——隐私开关被无声恢复是不可接受的静默 */
 export function loadSwitches(dir?: string): TakeoverSwitches {
   try {
     const p = switchesPath(dir)
@@ -37,16 +38,26 @@ export function loadSwitches(dir?: string): TakeoverSwitches {
         (x): x is string => typeof x === 'string' && (FOREIGN_PROVIDERS as readonly string[]).includes(x),
       ),
     }
-  } catch {
+  } catch (e) {
+    console.warn(`config.json 读取失败，按默认全开处理：${e instanceof Error ? e.message : String(e)}`)
     return { disabledProviders: [] }
   }
 }
 
-/** 写开关（原子性从简：单文件直写，损坏风险由 loadSwitches 兜底） */
+/** 写开关：tmp+rename 原子替换（进程中断不再留下半截 config.json） */
 export function saveSwitches(switches: TakeoverSwitches, dir?: string): void {
   const home = resolveHome(dir)
   mkdirSync(home, { recursive: true })
-  writeFileSync(switchesPath(dir), `${JSON.stringify(switches, null, 2)}\n`, 'utf-8')
+  const target = switchesPath(dir)
+  const tmp = `${target}.${process.pid}.tmp`
+  writeFileSync(tmp, `${JSON.stringify(switches, null, 2)}\n`, 'utf-8')
+  try {
+    renameSync(tmp, target)
+  } catch (e) {
+    // rename 失败（跨设备等）退回直写；临时文件尽力清掉
+    try { rmSync(tmp, { force: true }) } catch { /* 忽略 */ }
+    throw e
+  }
 }
 
 /** 某家是否启用（默认启用；只认八家名单内的停用条目） */
@@ -106,10 +117,13 @@ export interface TakeoverState {
    * 已见卡集合的键散列数据源（0.3.0 新卡徽标），同源连不同机器不串扰 */
   home: string
   pending: PendingRow[]
+  /** 收件箱概览里被跳过的坏卡数（不再静默） */
+  pendingSkipped: number
+  /** 收件箱概览不可用时的降级说明（pending 位置异常等）；正常时缺省 */
+  inboxError?: string
   archivedCount: number
   providers: ProviderRow[]
 }
-
 /**
  * 组装设置卡状态（纯函数核心，读取层与目录都可注入）：
  * 单家探测失败只影响该行，不拖垮整体。
@@ -117,14 +131,26 @@ export interface TakeoverState {
 export function buildState(readers: ForeignReaders, dir?: string): TakeoverState {
   const switches = loadSwitches(dir)
 
-  const pending: PendingRow[] = listPending(dir).map((c) => ({
-    id: c.id,
-    agent: c.from.agent !== '' ? c.from.agent : '（未知来源）',
-    title: c.from.title,
-    project: c.project,
-    pushedAt: c.pushed_at,
-    preview: previewOf(c),
-  }))
+  // 收件箱概览单独降级：pending 位置被同名文件占据等异常，只说明缺口，不炸整个设置卡
+  // （settings 头注释契约「任何一步失败都回规范值，绝不抛出」此前在 listPending/listArchived 上失守）
+  let pending: PendingRow[] = []
+  let pendingSkipped = 0
+  let inboxError: string | undefined
+  try {
+    const report = listPendingReport(dir)
+    pending = report.cards.map((c) => ({
+      id: c.id,
+      agent: c.from.agent !== '' ? c.from.agent : '（未知来源）',
+      title: c.from.title,
+      project: c.project,
+      pushedAt: c.pushed_at,
+      preview: previewOf(c),
+    }))
+    pendingSkipped = report.skipped.length
+  } catch (e) {
+    inboxError = `收件箱概览不可用：${e instanceof Error ? e.message : String(e)}`
+    console.warn(`[dsh-takeover] buildState：${inboxError}`)
+  }
 
   const providers: ProviderRow[] = FOREIGN_PROVIDERS.map((name) => {
     const adapter = PROVIDER_TO_ADAPTER[name]
@@ -155,18 +181,42 @@ export function buildState(readers: ForeignReaders, dir?: string): TakeoverState
     return { name, supported, sessions, enabled: !switches.disabledProviders.includes(name), note }
   })
 
-  return { home: resolveHome(dir), pending, archivedCount: listArchived(dir).length, providers }
+  return { home: resolveHome(dir), pending, pendingSkipped, inboxError, archivedCount: countArchived(dir), providers }
 }
 
-/** 清空 archived/：删除全部 .md，返回清除份数（目录不存在=0，不视为错误） */
+/** archived 计数：按目录枚举+stat，不逐卡解析（此前为个数全量 parse 每张归档卡） */
+function countArchived(dir?: string): number {
+  const ad = archivedDir(dir)
+  if (!existsSync(ad)) return 0
+  let n = 0
+  for (const f of readdirSync(ad)) {
+    if (!f.endsWith('.md')) continue
+    try {
+      if (statSync(join(ad, f)).isFile()) n += 1
+    } catch {
+      /* 单项 stat 失败不计入 */
+    }
+  }
+  return n
+}
+
+/** 清空 archived/：删除全部 .md 文件，返回清除份数（目录不存在=0，不视为错误）。
+ * *.md 目录等异常项：跳过不删（应用层删不动，留给人工），单删失败也继续清其余——
+ * 此前一个 *.md 目录就让整个清空操作抛 EISDIR，违背「绝不抛出」且永远 500。 */
 export function clearArchived(dir?: string): number {
   const ad = archivedDir(dir)
   if (!existsSync(ad)) return 0
   let cleared = 0
   for (const f of readdirSync(ad)) {
     if (!f.endsWith('.md')) continue
-    rmSync(join(ad, f))
-    cleared += 1
+    const p = join(ad, f)
+    try {
+      if (!statSync(p).isFile()) continue
+      rmSync(p)
+      cleared += 1
+    } catch {
+      /* 单项失败跳过：部分成功好过整单失败 */
+    }
   }
   return cleared
 }

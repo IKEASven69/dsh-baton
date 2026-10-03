@@ -37,6 +37,14 @@ const truncate = (s: unknown, n: number): string => {
   return str.length > n ? `${str.slice(0, n)}…` : str
 }
 
+/** 蒸馏上限：事件流可被构造出任意规模，写卡片会全量落盘并被 list/state 每次全量重读——
+ * 列表不设条数上限就是把宿主内存/CPU 交给单次 push（对照：commands 一直限 10 条） */
+export const MAX_WRITE_EDITS = 200
+export const MAX_USER_MESSAGES = 100
+export const MAX_GIT_COMMITS = 100
+/** 单条 file 路径上限 */
+const FILE_PATH_MAX = 200
+
 /** 从 content block 数组里抽出可见文本 */
 function contentText(blocks: unknown): string {
   if (!Array.isArray(blocks)) return ''
@@ -106,7 +114,7 @@ function collectPaths(parsed: Record<string, unknown>, into: Set<string>): void 
 function extractFile(parsed: Record<string, unknown> | null): string {
   if (!parsed) return ''
   for (const key of ['file_path', 'path']) {
-    if (typeof parsed[key] === 'string' && parsed[key] !== '') return parsed[key] as string
+    if (typeof parsed[key] === 'string' && parsed[key] !== '') return truncate(parsed[key], FILE_PATH_MAX)
   }
   return ''
 }
@@ -134,7 +142,7 @@ export function collectFacts(events: unknown[]): SessionFacts {
         const source = data?.['source'] as { kind?: unknown } | undefined
         if (source && source.kind === 'user') {
           const text = contentText(data?.['content']).trim()
-          if (text !== '') {
+          if (text !== '' && facts.userMessages.length < MAX_USER_MESSAGES) {
             facts.userMessages.push({ time: Number.isFinite(e.time) ? (e.time as number) : 0, text: truncate(text, 200) })
           }
         }
@@ -145,14 +153,16 @@ export function collectFacts(events: unknown[]): SessionFacts {
         const toolName = typeof data?.['name'] === 'string' ? data['name'] : ''
         const parsed = parseArgs(data?.['arguments'])
         if (parsed) collectPaths(parsed, facts.keyFiles)
-        if (toolName !== '' && FILE_MUTATING_TOOLS.has(toolName)) {
+        if (toolName !== '' && FILE_MUTATING_TOOLS.has(toolName) && facts.writeEdits.length < MAX_WRITE_EDITS) {
           const file = extractFile(parsed)
           if (file !== '') facts.writeEdits.push({ tool: toolName, file })
         }
         if (toolName !== '' && COMMAND_TOOLS.has(toolName) && parsed && typeof parsed['command'] === 'string') {
           const cmd = truncate(parsed['command'], 120)
           if (facts.commands.length < 10) facts.commands.push(cmd)
-          if (/\bgit\s+commit\b/.test(parsed['command'])) facts.gitCommits.push(truncate(parsed['command'], 160))
+          if (facts.gitCommits.length < MAX_GIT_COMMITS && /\bgit\s+commit\b/.test(parsed['command'])) {
+            facts.gitCommits.push(truncate(parsed['command'], 160))
+          }
         }
         break
       }

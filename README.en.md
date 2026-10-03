@@ -55,7 +55,7 @@ dsh plugin --profile web add github:IKEASven69/dsh-takeover
 
 | Tool | Description |
 |---|---|
-| `foreign_session_read` | Read-only pull of eight foreign agents' local sessions (claude / codex / opencode / zcode / pi / workbuddy / cursor / grok). `action=list` lists candidates (title/time/turn count); `action=show` resolves a reference (empty or `latest` = newest; id / id prefix / path / title keyword; ambiguity returns candidates, never guesses) and returns a **structured summary**: title, turn counts, first user message, tail progress, top-15 involved files, and six-section skeleton-card material. Raw turns are paged only when `limit`/`offset` are explicitly passed. Canonical `{ ok, ... }` values; probe/parse failures return `{ ok: false, error }`, never throw. |
+| `foreign_session_read` | Read-only pull of eight foreign agents' local sessions (claude / codex / opencode / zcode / pi / workbuddy / cursor / grok). `action=list` lists candidates (title/time/turn count); `action=show` resolves a reference (empty or `latest` = newest; id / id prefix / path / title keyword; ambiguity returns candidates, never guesses) and returns a **structured summary**: title, turn counts, first user message, tail progress, top-15 involved files, and six-section skeleton-card material. Raw turns are paged only when `limit` is explicitly passed (offset applies together with `limit`; a lone `offset` returns no raw text). Canonical `{ ok, ... }` values; probe/parse failures return `{ ok: false, error }`, never throw. |
 | `handoff_push` | Checks the current session into the inbox as a protocol card. The six section texts (goal/files/done/remaining/stopped/warnings/suggested) are optional; empty sections fall back to **deterministic** collection from the session event stream (no LLM calls; probe failures degrade, never throw). Returns a canonical `{ ok, id, path }` value. |
 | `handoff_inbox` | `action=list` lists pending cards (id/source/project/time); `action=load` + `id` picks one up (consume-and-archive, with git-verify MISMATCH / UNAVAILABLE warnings). Returns canonical `{ ok, ... }` values. |
 
@@ -71,7 +71,7 @@ dsh plugin --profile web add github:IKEASven69/dsh-takeover
 
 ## Settings card (dsh web)
 
-Provided since 0.2.2, now four zones (the browser half is declared via `dsh.client`; data flows over same-origin `/dsh-takeover/*` JSON APIs; copy follows the host UI language, zh/en):
+Provided since 0.1.0, now four zones (the browser half is declared via `dsh.client`; data flows over same-origin `/dsh-takeover/*` JSON APIs; copy follows the host UI language, zh/en):
 
 - **Commands**: `/handoff`, `/inbox` and the eight `/resume-*` laid out directly; disabled vendors dim in sync;
 - **Inbox overview**: pending/consumed badges + card rows (source brand icon, title, project, id, time); click a row to expand a read-only "goal" preview — pickup happens in-session via `/inbox`; a "clear consumed" button (two-step confirm);

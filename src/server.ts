@@ -19,15 +19,36 @@ function sendJson(response: ServerResponse, code: number, body: unknown): void {
   response.end(JSON.stringify(body))
 }
 
-/** 同源守卫（dshmarket / dsh-hippo 先例）：带 Origin 的请求必须与 Host 一致，防跨站 POST。 */
+/** Host 头是否指向本机回环。面板只服务本机：DNS rebinding 下 Host 是攻击者域，
+ * 与 Origin 同域比对无法识别——直接要求 Host 是回环（127.0.0.1/[::1]/localhost）。 */
+function loopbackHost(host: string): boolean {
+  const h = host.toLowerCase()
+  const hostname = h.startsWith('[') ? h.slice(0, h.indexOf(']') + 1) : h.split(':')[0] ?? h
+  return hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]' || hostname === 'localhost'
+}
+
+/** 同源守卫：带 Origin 的请求必须与 Host 一致，且 Host 必须回环（防跨站 POST 与 rebinding）。
+ * 不再裸比 `new URL(origin).host === Host`——Host 头客户端完全可控，等价于没防。 */
 function sameOrigin(request: { headers: { origin?: string; host?: string } }): boolean {
   const { origin, host } = request.headers
   if (origin === undefined || host === undefined) return false
+  if (!loopbackHost(host)) return false
   try {
-    return new URL(origin).host === host
+    const u = new URL(origin)
+    return u.host === host.toLowerCase() && loopbackHost(u.host)
   } catch {
     return false
   }
+}
+
+/** 读守卫（GET state）：Host 回环之外，浏览器跨站 no-cors 请求带 Sec-Fetch-Site: cross-site
+ * （forbidden header name，页面脚本改不了），非浏览器客户端（curl/CLI）不带该头放行——
+ * 监听面在本机回环，Host 已验证。30s 轮询的面板自身 fetch 是 same-origin，不受影响。 */
+function readGuard(request: { headers: { host?: string; 'sec-fetch-site'?: string } }): boolean {
+  const host = request.headers.host
+  if (host === undefined || !loopbackHost(host)) return false
+  const site = request.headers['sec-fetch-site']
+  return site === undefined || site === 'same-origin' || site === 'none'
 }
 
 /** 读取 JSON 请求体（上限 4 KiB，超限拒绝）。 */
@@ -78,6 +99,11 @@ export function registerTakeoverRoutes(ctx: Context): void {
           if (request.method !== 'GET') {
             response.writeHead(405, { allow: 'GET' })
             response.end()
+            return
+          }
+          // state 一直全裸（返回 HANDOFF_HOME 绝对路径与卡片预览，且每请求全量扫盘）——补读守卫
+          if (!readGuard(request)) {
+            sendJson(response, 403, { error: '仅接受本机同源读取' })
             return
           }
           void stateBody().then(

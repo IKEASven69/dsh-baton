@@ -93,8 +93,11 @@ type PushResult = {
 /** 确定性兜底：事件流事实 → 六段正文草稿（中文，证据一律 HISTORY_REPORTED） */
 export declare function factsToSections(facts: SessionFacts, skipped: boolean, note: string): CardSections;
 /**
- * 推送核心（可脱离 cordis 单测）：组装协议卡片写入 pending/。
+ * 推送核心（可脱离 host 单测）：组装协议卡片写入 pending/。
  * session 可以是任何形态——探测失败只降级，不抛错。
+ * 外来段落净化（ANSI/控制字符剥离、伪标题解除形态）并限量（单段 128K 字符，
+ * 标量 500）——共享收件箱的卡会被 inboxList/buildState 每次全量重读，不设上限
+ * 就是把宿主内存/CPU 交给任意一次 push。
  */
 export declare function pushHandoff(session: unknown, args: PushArgs, opts?: {
   dir?: string;
@@ -113,11 +116,12 @@ type InboxListResult = {
   ok: true;
   action: 'list';
   cards: InboxItem[];
+  skipped: number;
 } | {
   ok: false;
   error: string;
 };
-/** 列出 pending 待取件（新→旧），只读不消费 */
+/** 列出 pending 待取件（新→旧），只读不消费；坏卡跳过并计数（skipped），不再静默 */
 export declare function inboxList(opts?: {
   dir?: string;
 }): InboxListResult;
@@ -319,9 +323,10 @@ interface TakeoverSwitches {
 }
 /** config.json 路径（HANDOFF_HOME 优先，否则 ~/.handoff） */
 export declare function switchesPath(dir?: string): string;
-/** 读开关：文件缺失/损坏一律视为默认全开 */
+/** 读开关：文件缺失/损坏一律视为默认全开（fail-open 是有文档的取舍），
+ * 但损坏必须告警——隐私开关被无声恢复是不可接受的静默 */
 export declare function loadSwitches(dir?: string): TakeoverSwitches;
-/** 写开关（原子性从简：单文件直写，损坏风险由 loadSwitches 兜底） */
+/** 写开关：tmp+rename 原子替换（进程中断不再留下半截 config.json） */
 export declare function saveSwitches(switches: TakeoverSwitches, dir?: string): void;
 /** 某家是否启用（默认启用；只认八家名单内的停用条目） */
 export declare function isProviderEnabled(provider: string, dir?: string): boolean;
@@ -351,6 +356,10 @@ interface TakeoverState {
    * 已见卡集合的键散列数据源（0.3.0 新卡徽标），同源连不同机器不串扰 */
   home: string;
   pending: PendingRow[];
+  /** 收件箱概览里被跳过的坏卡数（不再静默） */
+  pendingSkipped: number;
+  /** 收件箱概览不可用时的降级说明（pending 位置异常等）；正常时缺省 */
+  inboxError?: string;
   archivedCount: number;
   providers: ProviderRow[];
 }
@@ -359,7 +368,9 @@ interface TakeoverState {
  * 单家探测失败只影响该行，不拖垮整体。
  */
 export declare function buildState(readers: ForeignReaders, dir?: string): TakeoverState;
-/** 清空 archived/：删除全部 .md，返回清除份数（目录不存在=0，不视为错误） */
+/** 清空 archived/：删除全部 .md 文件，返回清除份数（目录不存在=0，不视为错误）。
+ * *.md 目录等异常项：跳过不删（应用层删不动，留给人工），单删失败也继续清其余——
+ * 此前一个 *.md 目录就让整个清空操作抛 EISDIR，违背「绝不抛出」且永远 500。 */
 export declare function clearArchived(dir?: string): number;
 //#endregion
 //#region src/server.d.ts

@@ -55,7 +55,7 @@ dsh plugin --profile web add github:IKEASven69/dsh-takeover
 
 | 工具 | 说明 |
 |---|---|
-| `foreign_session_read` | 只读拉取八家会话（claude / codex / opencode / zcode / pi / workbuddy / cursor / grok）。`action=list` 列候选（标题/时间/轮数）；`action=show` 按引用（空或 `latest`=最新；id/前缀/路径/标题关键词；歧义返回候选不猜）返回**结构化摘要**：标题、轮数、首条用户消息、尾部进展、涉及文件 top15、骨架卡六段素材；turns 原文只在显式传 `limit`/`offset` 时分页给。返回 `{ ok, ... }` 规范值，探测/解析失败 `{ ok: false, error }` 不抛。 |
+| `foreign_session_read` | 只读拉取八家会话（claude / codex / opencode / zcode / pi / workbuddy / cursor / grok）。`action=list` 列候选（标题/时间/轮数）；`action=show` 按引用（空或 `latest`=最新；id/前缀/路径/标题关键词；歧义返回候选不猜）返回**结构化摘要**：标题、轮数、首条用户消息、尾部进展、涉及文件 top15、骨架卡六段素材；turns 原文只在显式传 `limit` 时分页给（offset 需与 limit 同传，offset 单传不返回原文）。返回 `{ ok, ... }` 规范值，探测/解析失败 `{ ok: false, error }` 不抛。 |
 | `handoff_push` | 把当前会话寄存为协议卡片。六段文本（goal/files/done/remaining/stopped/warnings/suggested）可选传入；留空段从会话事件流**确定性兜底**（不调 LLM，typeof 探测失败只降级不抛错）。返回 `{ ok, id, path }` 规范值。 |
 | `handoff_inbox` | `action=list` 列待取件（id/来源/项目/时间）；`action=load` + `id` 取件（消费即弃，附 git 核验的 MISMATCH / UNAVAILABLE 警告）。返回 `{ ok, ... }` 规范值。 |
 
@@ -71,7 +71,7 @@ dsh plugin --profile web add github:IKEASven69/dsh-takeover
 
 ## 设置卡（dsh web）
 
-0.2.2 起提供，现为四个区（浏览器半经 `dsh.client` 声明，数据走同源 `/dsh-takeover/*` JSON API；文案走宿主 i18n，跟随界面语言中英切换）：
+0.1.0 起提供，现为四个区（浏览器半经 `dsh.client` 声明，数据走同源 `/dsh-takeover/*` JSON API；文案走宿主 i18n，跟随界面语言中英切换）：
 
 - **命令速览**：`/handoff`、`/inbox` 与八条 `/resume-*` 直接平铺可见，停用的家灰显联动；
 - **收件箱概览**：待取件 / 已消费徽章 + 卡片列表（来源品牌图标、标题、项目、编号、时间）；行点击展开「目标」段预览（只读——取件在会话里 `/inbox` 做）；「清空已消费」按钮（二次确认）；

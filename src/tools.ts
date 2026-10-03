@@ -18,7 +18,7 @@ import type { AskUserQuestionRequest } from '@deepseek-ai/dsh-user-questions'
 import {
   collectGitSnapshot,
   generateId,
-  listPending,
+  listPendingReport,
   loadCard,
   renderCard,
   verifyGit,
@@ -29,12 +29,54 @@ import {
 } from '@agent-handoff/core'
 import { collectFacts, probeSessionEvents, todoToTasks, type SessionFacts } from './collect.ts'
 
+// ---------------------------------------------------------------------------
+// 共享收件箱的输入净化与上限：卡片正文/段落是外来输入，落盘后被 list/state
+// 每次全量重读——无界段落放大成宿主 OOM；`## 标题`/ANSI 是注入面。
+// ---------------------------------------------------------------------------
+
+/** 单段字符上限（七段合计约 0.9MB，30s 轮询全量重读仍在毫秒级） */
+export const MAX_SECTION_CHARS = 128 * 1024
+/** 标量字段（title/to/project）字符上限 */
+export const MAX_SCALAR_CHARS = 500
+/** cwd 字符上限 */
+export const MAX_CWD_CHARS = 1024
+/** 卡片 id 长度上限（SAFE_ID 形态不限长，超长 id 的错误文案会回显全长） */
+export const MAX_ID_CHARS = 64
+
+const ANSI_CSI = /\u001B\[[0-9;:?]*[ -/]*[@-~]/g
+const ANSI_OSC = /\u001B\][^\u0007\u001B]*(?:\u0007|\u001B\\)/g
+
+/** 剥离 ANSI 转义序列与其余 C0/C1 控制字符（保留 \n \r \t） */
+export function stripControlChars(s: string): string {
+  return s
+    .replace(ANSI_CSI, '')
+    .replace(ANSI_OSC, '')
+    // eslint-disable-next-line no-control-regex -- 正是要清的控制字符
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+}
+
+/** 解除段内标题形态：core parseSections 按行首 `## 标题` 切段，正文里的
+ * 伪标题会被切成「真」协议段（段注入）。行首垫一格即可解除，内容零丢失。 */
+export function defuseHeadingLines(s: string): string {
+  return s.split('\n').map((l) => (/^\s*#{1,6}\s/.test(l) ? ` ${l}` : l)).join('\n')
+}
+
+/** 规范错误文案：系统级错误（带 errno code）包一层中文口径，模块自产中文错原样透传 */
+export function readableError(e: unknown): string {
+  if (e instanceof Error) {
+    const code = (e as { code?: unknown }).code
+    if (typeof code === 'string' && /^[A-Z][A-Z0-9_]*$/.test(code)) return `文件系统错误（${code}）：${e.message}`
+    return e.message
+  }
+  return String(e)
+}
+
 /** 渲染：execute 返回规范值对象，render 包成中文 text block */
 function renderPush(_args: unknown, value: unknown): Array<{ type: 'text'; text: string }> {
   const v = value as { ok?: boolean; id?: string; path?: string; skipped?: boolean; note?: string; error?: unknown }
   if (v?.ok === true) {
     const lines = [`✅ 交接卡片已寄存：${v.id ?? ''}`, `路径：${v.path ?? ''}`]
-    if (v.skipped === true) lines.push(`⚠️ 降级导出：${v.note ?? '会话事件流不可用，仅兜底骨架'}`)
+    if (typeof v.note === 'string' && v.note !== '') lines.push(`⚠️ ${v.note}`)
     lines.push('任何 agent 可用 handoff_inbox（或 /inbox）取件。')
     return [{ type: 'text', text: lines.join('\n') }]
   }
@@ -46,6 +88,7 @@ function renderInbox(_args: unknown, value: unknown): Array<{ type: 'text'; text
     ok?: boolean
     action?: string
     cards?: Array<{ id: string; from: string; project: string; pushed_at: string }>
+    skipped?: number
     text?: string
     mismatches?: string[]
     unavailable?: string
@@ -56,8 +99,11 @@ function renderInbox(_args: unknown, value: unknown): Array<{ type: 'text'; text
   }
   if (v.action === 'list') {
     const cards = v.cards ?? []
-    if (cards.length === 0) return [{ type: 'text', text: '📭 收件箱为空（~/.handoff/pending/ 无待取件）' }]
+    if (cards.length === 0 && !v.skipped) return [{ type: 'text', text: '📭 收件箱为空（~/.handoff/pending/ 无待取件）' }]
     const lines = cards.map((c, i) => `${i + 1}. ${c.id}｜来自 ${c.from}｜项目 ${c.project || '（无）'}｜${c.pushed_at || '（无时间）'}`)
+    if (typeof v.skipped === 'number' && v.skipped > 0) {
+      lines.push(`（另有 ${v.skipped} 张坏卡被跳过，详见宿主日志）`)
+    }
     return [{ type: 'text', text: `📬 待取件 ${cards.length} 张：\n${lines.join('\n')}\n\n取件：handoff_inbox({ action: "load", id: "<id>" })` }]
   }
   // load
@@ -156,8 +202,11 @@ export function factsToSections(facts: SessionFacts, skipped: boolean, note: str
 }
 
 /**
- * 推送核心（可脱离 cordis 单测）：组装协议卡片写入 pending/。
+ * 推送核心（可脱离 host 单测）：组装协议卡片写入 pending/。
  * session 可以是任何形态——探测失败只降级，不抛错。
+ * 外来段落净化（ANSI/控制字符剥离、伪标题解除形态）并限量（单段 128K 字符，
+ * 标量 500）——共享收件箱的卡会被 inboxList/buildState 每次全量重读，不设上限
+ * 就是把宿主内存/CPU 交给任意一次 push。
  */
 export function pushHandoff(session: unknown, args: PushArgs, opts?: { dir?: string }): PushResult {
   try {
@@ -168,29 +217,41 @@ export function pushHandoff(session: unknown, args: PushArgs, opts?: { dir?: str
 
     const s = session as { id?: unknown; header?: { cwd?: unknown } } | null | undefined
     const sessionId = s && s.id != null ? String(s.id) : ''
-    const cwd = (typeof args.cwd === 'string' && args.cwd.trim() !== '' && args.cwd.trim())
+    const rawCwd = (typeof args.cwd === 'string' && args.cwd.trim() !== '' && args.cwd.trim())
       || (typeof s?.header?.cwd === 'string' ? s.header.cwd : '')
       || process.cwd()
+    const cwd = stripControlChars(rawCwd).slice(0, MAX_CWD_CHARS)
 
     const fallback = factsToSections(facts, probe.skipped, probe.note)
     const pick = (v: string | undefined, dflt: string): string => (typeof v === 'string' && v.trim() !== '' ? v.trim() : dflt)
+    const truncated: string[] = []
+    const section = (v: string | undefined, dflt: string): string => {
+      const clean = defuseHeadingLines(stripControlChars(pick(v, dflt)))
+      if (clean.length <= MAX_SECTION_CHARS) return clean
+      truncated.push(`「${clean.slice(0, 12)}…」段超 ${MAX_SECTION_CHARS} 字符已截断`)
+      return `${clean.slice(0, MAX_SECTION_CHARS)}\n…（超长截断）`
+    }
+    const scalar = (v: string | undefined, dflt: string): string => {
+      const clean = stripControlChars(pick(v, dflt))
+      return clean.length > MAX_SCALAR_CHARS ? clean.slice(0, MAX_SCALAR_CHARS) : clean
+    }
     const sections: CardSections = {
-      goal: pick(args.goal, fallback.goal),
-      files: pick(args.files, fallback.files),
-      done: pick(args.done, fallback.done),
-      remaining: pick(args.remaining, fallback.remaining),
-      stopped: pick(args.stopped, fallback.stopped),
-      warnings: pick(args.warnings, fallback.warnings),
+      goal: section(args.goal, fallback.goal),
+      files: section(args.files, fallback.files),
+      done: section(args.done, fallback.done),
+      remaining: section(args.remaining, fallback.remaining),
+      stopped: section(args.stopped, fallback.stopped),
+      warnings: section(args.warnings, fallback.warnings),
     }
     const suggested = pick(args.suggested, '')
-    if (suggested !== '') sections.suggested = suggested
+    if (suggested !== '') sections.suggested = section(suggested, '')
 
     const card: Card = {
       handoff: 1,
       id: generateId(),
-      from: { agent: 'dsh', session: sessionId, title: pick(args.title, '') },
-      to: pick(args.to, 'any'),
-      project: pick(args.project, ''),
+      from: { agent: 'dsh', session: sessionId, title: scalar(args.title, '') },
+      to: scalar(args.to, 'any'),
+      project: scalar(args.project, ''),
       cwd,
       pushed_at: localIso(new Date()),
       git: collectGitSnapshot(cwd),
@@ -199,9 +260,10 @@ export function pushHandoff(session: unknown, args: PushArgs, opts?: { dir?: str
       extras: {},
     }
     const path = writeCard(card, opts?.dir)
-    return { ok: true, id: card.id, path, skipped: probe.skipped, note: probe.note }
+    const note = [probe.note, ...truncated].filter(Boolean).join('；')
+    return { ok: true, id: card.id, path, skipped: probe.skipped, note }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    return { ok: false, error: readableError(e) }
   }
 }
 
@@ -217,12 +279,15 @@ export interface InboxItem {
   [k: string]: string | number
 }
 
-export type InboxListResult = { ok: true; action: 'list'; cards: InboxItem[] } | { ok: false; error: string }
+export type InboxListResult =
+  | { ok: true; action: 'list'; cards: InboxItem[]; skipped: number }
+  | { ok: false; error: string }
 
-/** 列出 pending 待取件（新→旧），只读不消费 */
+/** 列出 pending 待取件（新→旧），只读不消费；坏卡跳过并计数（skipped），不再静默 */
 export function inboxList(opts?: { dir?: string }): InboxListResult {
   try {
-    const cards = listPending(opts?.dir).map((c) => ({
+    const report = listPendingReport(opts?.dir)
+    const cards = report.cards.map((c) => ({
       id: c.id,
       from: c.from.agent !== '' ? `${c.from.agent}${c.from.title !== '' ? `（${c.from.title}）` : ''}` : '（未知来源）',
       title: c.from.title,
@@ -231,9 +296,9 @@ export function inboxList(opts?: { dir?: string }): InboxListResult {
       pushed_at: c.pushed_at,
       taskCount: c.tasks.length,
     }))
-    return { ok: true, action: 'list', cards }
+    return { ok: true, action: 'list', cards, skipped: report.skipped.length }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    return { ok: false, error: readableError(e) }
   }
 }
 
@@ -245,6 +310,10 @@ export type InboxLoadResult =
 export function inboxLoad(id: string, opts?: { dir?: string }): InboxLoadResult {
   const trimmed = (id ?? '').trim()
   if (trimmed === '') return { ok: false, error: 'id 不能为空' }
+  // 超长 id 早拒：SAFE_ID 形态不限长度，500 字符合法形态 id 会把全长回显进错误文案
+  if (trimmed.length > MAX_ID_CHARS) {
+    return { ok: false, error: `非法卡片 id（长度 ${trimmed.length} 超上限 ${MAX_ID_CHARS}）：${trimmed.slice(0, 48)}…` }
+  }
   try {
     const card = loadCard(trimmed, opts?.dir)
     const check = verifyGit(card)
@@ -258,8 +327,8 @@ export function inboxLoad(id: string, opts?: { dir?: string }): InboxLoadResult 
     if (check.unavailable !== undefined) out.unavailable = check.unavailable
     return out
   } catch (e) {
-    // 二次取件等核心层错误原样带中文文案
-    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    // core 层中文错误（收件箱无此待取件等）原样透传；系统错误包中文口径
+    return { ok: false, error: readableError(e) }
   }
 }
 

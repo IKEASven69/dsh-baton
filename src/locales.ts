@@ -39,7 +39,7 @@ export const zh: Record<string, string> = {
   project: '项目 {name}',
   idLabel: '编号 {id}',
   previewEmpty: '（卡片正文为空）',
-  previewHint: '—— 仅预览「目标」段；取件请回会话用 /inbox。',
+  previewHint: '—— 预览取自「目标」段（目标段为空时回退「做到哪」段）；取件请回会话用 /inbox。',
   filterPlaceholder: '过滤：标题 / 来源 / 编号…',
   filterAria: '收件箱即时过滤（匹配标题、来源名或编号，清空即恢复全部）',
   filterEmpty: '没有匹配的卡片——清空过滤框可恢复全部',
@@ -50,7 +50,7 @@ export const zh: Record<string, string> = {
   exportAll: '导出全部',
   exportAllTitle: '把全部待取件卡片拼成一个 .md 下载（零依赖，纯前端生成）',
   exportNoteTop: '> 本文件由 dsh-takeover 设置卡导出，仅含收件箱 state 提供的字段：' +
-    '编号 / 来源 / 标题 / 项目 / 推送时间，以及「目标」段预览（服务端截 240 字）。' +
+    '编号 / 来源 / 标题 / 项目 / 推送时间，以及「目标」段预览（服务端截 240 字；目标段为空时回退「做到哪」段）。' +
     '来源会话、cwd、git 快照、tasks 与其余五段全文不在 state 内，未作臆造——' +
     '完整卡片请回会话用 /inbox 取件。',
   exportSectionMissing: '（该段全文不在此文件：设置卡 state 未提供。回会话用 /inbox 取件查看完整卡片。）',
@@ -96,7 +96,7 @@ export const en: Record<string, string> = {
   project: 'project {name}',
   idLabel: 'id {id}',
   previewEmpty: '(card body is empty)',
-  previewHint: '— Goal section preview only; run /inbox in a session to claim.',
+  previewHint: '— Preview from the goal section (falls back to the done section when the goal is empty); run /inbox in a session to claim.',
   filterPlaceholder: 'Filter: title / source / id…',
   filterAria: 'Instant inbox filter (matches title, source name, or id; clear to restore)',
   filterEmpty: 'No matching cards — clear the filter to restore the full list',
@@ -107,7 +107,7 @@ export const en: Record<string, string> = {
   exportAll: 'Export all',
   exportAllTitle: 'Download every pending card as one .md (zero-dependency, generated in the browser)',
   exportNoteTop: '> Exported by the dsh-takeover settings card. Contains only the fields provided by the inbox state: ' +
-    'id / source / title / project / push time, plus the "goal" section preview (server-truncated to 240 chars). ' +
+    'id / source / title / project / push time, plus the "goal" section preview (server-truncated to 240 chars; falls back to the "done" section when the goal is empty). ' +
     'The source session, cwd, git snapshot, tasks and the other five sections are not in state and are not invented — ' +
     'pick up the full card with /inbox in a session.',
   exportSectionMissing: '(The full text of this section is not in this file: the settings-card state does not provide it. Pick up the full card with /inbox in a session.)',
