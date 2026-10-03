@@ -16,7 +16,7 @@ import { isProviderEnabled } from './settings.ts'
 import { skillRegistrations } from '../skills/index.ts'
 
 export const name = 'dsh-takeover'
-export const inject = ['tools', 'skills']
+export const inject = ['tools', 'skills', 'userQuestions']
 
 export function apply(ctx: Context): void {
   registerPushTool(ctx)

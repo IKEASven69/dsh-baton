@@ -146,7 +146,7 @@ export declare function inboxLoad(id: string, opts?: {
 export declare function handoffHostNotice(userQuestions: unknown, action: 'push' | 'load', id: string, exec?: {
   agent?: Agent;
   signal?: AbortSignal;
-}): Promise<void>;
+}, log?: (msg: string) => void): Promise<void>;
 //#endregion
 //#region ../agent-handoff/packages/readers/dist/index.d.mts
 //#region src/transcript.d.ts

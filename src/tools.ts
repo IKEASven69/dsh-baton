@@ -280,10 +280,27 @@ export async function handoffHostNotice(
   action: 'push' | 'load',
   id: string,
   exec?: { agent?: Agent; signal?: AbortSignal },
+  log?: (msg: string) => void,
 ): Promise<void> {
-  if (userQuestions === null || typeof userQuestions !== 'object') return
+  // 观测双通道：console.*（stdout / web-baton 日志可查）+ ctx.logger（宿主日志汇），
+  // 哪条可见用哪条。0.2.0 期间 ctx.logger 从未落到 stdout 文件（8 次启动 0 命中，已实测）。
+  const say = (msg: string): void => {
+    try {
+      console.info(`[dsh-takeover] ${msg}`)
+    } catch { /* 忽略 */ }
+    try {
+      log?.(msg)
+    } catch { /* 忽略 */ }
+  }
+  if (userQuestions === null || typeof userQuestions !== 'object') {
+    say(`${action} 通知跳过：userQuestions 服务缺席（${id}）`)
+    return
+  }
   const ask = (userQuestions as { ask?: unknown }).ask
-  if (typeof ask !== 'function') return
+  if (typeof ask !== 'function') {
+    say(`${action} 通知跳过：ask 非函数（${id}）`)
+    return
+  }
   const pushed = action === 'push'
   const request: AskUserQuestionRequest = {
     questions: [{
@@ -294,13 +311,16 @@ export async function handoffHostNotice(
     ...(exec?.agent !== undefined ? { agent: exec.agent } : {}),
     signal: exec?.signal,
   }
+  say(`${action} 通知 ask 开始（${id}，agent=${exec?.agent !== undefined ? '有' : '无'}）`)
   try {
-    await (ask as (req: AskUserQuestionRequest) => Promise<unknown>).call(userQuestions, request)
+    const answer = await (ask as (req: AskUserQuestionRequest) => Promise<unknown>).call(userQuestions, request)
+    // 有人接受并回答了——记录回答内容（谁在消费通知请求的关键观测）
+    say(`${action} 通知 ask 已解答（${id}）：${JSON.stringify(answer)?.slice(0, 400)}`)
   } catch (e) {
     // NO_PROVIDER / DELEGATED_CALLER / ASK_ABORTED / 无 open turn：通知降级，主流程照常。
     // 降级码进日志（e.code 区分未认领 vs 已中止），为 0.3.x 通知形态结论留观测。
-    const code = (e as { code?: string; name?: string })?.code ?? (e as { name?: string })?.name ?? 'unknown'
-    console.info(`[dsh-takeover] ${action} 通知降级（${id}）：${code}`)
+    const err = e as { code?: string; name?: string; message?: string }
+    say(`${action} 通知降级（${id}）：${err.code ?? err.name ?? 'unknown'} ${err.message ?? ''}`.trim())
   }
 }
 
@@ -350,7 +370,7 @@ export function registerPushTool(ctx: Context): void {
     async execute(args: PushArgs, exec: { agent?: Agent; signal?: AbortSignal }) {
       const result = pushHandoff(sessionOf(exec), args)
       // 寄存成功后的宿主通知（阻塞式问答面板；服务缺席/客户端离线静默降级）
-      if (result.ok) await handoffHostNotice(safeUserQuestions(ctx), 'push', result.id, exec)
+      if (result.ok) await handoffHostNotice(safeUserQuestions(ctx), 'push', result.id, exec, (m) => ctx.logger.info(m))
       return result
     },
   }))
@@ -387,7 +407,7 @@ export function registerInboxTool(ctx: Context): void {
       if (args.action === 'load') {
         const result = inboxLoad(args.id ?? '')
         // 取件成功后的宿主通知（同 push：阻塞式问答面板，失败静默降级）
-        if (result.ok) await handoffHostNotice(safeUserQuestions(ctx), 'load', result.id, exec)
+        if (result.ok) await handoffHostNotice(safeUserQuestions(ctx), 'load', result.id, exec, (m) => ctx.logger.info(m))
         return result
       }
       return { ok: false, error: `未知 action：${String(args.action)}（支持 list / load）` }
