@@ -296,8 +296,11 @@ export async function handoffHostNotice(
   }
   try {
     await (ask as (req: AskUserQuestionRequest) => Promise<unknown>).call(userQuestions, request)
-  } catch {
-    // NO_PROVIDER / DELEGATED_CALLER / ASK_ABORTED / 无 open turn：通知降级，主流程照常
+  } catch (e) {
+    // NO_PROVIDER / DELEGATED_CALLER / ASK_ABORTED / 无 open turn：通知降级，主流程照常。
+    // 降级码进日志（e.code 区分未认领 vs 已中止），为 0.3.x 通知形态结论留观测。
+    const code = (e as { code?: string; name?: string })?.code ?? (e as { name?: string })?.name ?? 'unknown'
+    console.info(`[dsh-takeover] ${action} 通知降级（${id}）：${code}`)
   }
 }
 

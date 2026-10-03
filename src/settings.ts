@@ -102,6 +102,9 @@ export interface ProviderRow {
 }
 
 export interface TakeoverState {
+  /** 解析后的 HANDOFF_HOME 绝对路径（默认 ~/.handoff）：客户端 localStorage
+   * 已见卡集合的键散列数据源（0.3.0 新卡徽标），同源连不同机器不串扰 */
+  home: string
   pending: PendingRow[]
   archivedCount: number
   providers: ProviderRow[]
@@ -152,7 +155,7 @@ export function buildState(readers: ForeignReaders, dir?: string): TakeoverState
     return { name, supported, sessions, enabled: !switches.disabledProviders.includes(name), note }
   })
 
-  return { pending, archivedCount: listArchived(dir).length, providers }
+  return { home: resolveHome(dir), pending, archivedCount: listArchived(dir).length, providers }
 }
 
 /** 清空 archived/：删除全部 .md，返回清除份数（目录不存在=0，不视为错误） */

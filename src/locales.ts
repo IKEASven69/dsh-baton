@@ -40,6 +40,20 @@ export const zh: Record<string, string> = {
   idLabel: '编号 {id}',
   previewEmpty: '（卡片正文为空）',
   previewHint: '—— 仅预览「目标」段；取件请回会话用 /inbox。',
+  filterPlaceholder: '过滤：标题 / 来源 / 编号…',
+  filterAria: '收件箱即时过滤（匹配标题、来源名或编号，清空即恢复全部）',
+  filterEmpty: '没有匹配的卡片——清空过滤框可恢复全部',
+  newBadge: '新',
+  groupCount: '共 {n} 张',
+  exportCard: '导出 .md',
+  exportCardTitle: '下载该卡片为 .md（frontmatter + 六段；state 未含的段全文就地注明，不臆造）',
+  exportAll: '导出全部',
+  exportAllTitle: '把全部待取件卡片拼成一个 .md 下载（零依赖，纯前端生成）',
+  exportNoteTop: '> 本文件由 dsh-takeover 设置卡导出，仅含收件箱 state 提供的字段：' +
+    '编号 / 来源 / 标题 / 项目 / 推送时间，以及「目标」段预览（服务端截 240 字）。' +
+    '来源会话、cwd、git 快照、tasks 与其余五段全文不在 state 内，未作臆造——' +
+    '完整卡片请回会话用 /inbox 取件。',
+  exportSectionMissing: '（该段全文不在此文件：设置卡 state 未提供。回会话用 /inbox 取件查看完整卡片。）',
   matrixTitle: '支持矩阵（八家读取器）',
   sessionsCount: '{n} 个会话',
   sessionsProbeFail: '会话数探测失败',
@@ -83,6 +97,20 @@ export const en: Record<string, string> = {
   idLabel: 'id {id}',
   previewEmpty: '(card body is empty)',
   previewHint: '— Goal section preview only; run /inbox in a session to claim.',
+  filterPlaceholder: 'Filter: title / source / id…',
+  filterAria: 'Instant inbox filter (matches title, source name, or id; clear to restore)',
+  filterEmpty: 'No matching cards — clear the filter to restore the full list',
+  newBadge: 'NEW',
+  groupCount: '{n} cards',
+  exportCard: 'Export .md',
+  exportCardTitle: 'Download this card as .md (frontmatter + 6 sections; sections not in state are noted in place, never invented)',
+  exportAll: 'Export all',
+  exportAllTitle: 'Download every pending card as one .md (zero-dependency, generated in the browser)',
+  exportNoteTop: '> Exported by the dsh-takeover settings card. Contains only the fields provided by the inbox state: ' +
+    'id / source / title / project / push time, plus the "goal" section preview (server-truncated to 240 chars). ' +
+    'The source session, cwd, git snapshot, tasks and the other five sections are not in state and are not invented — ' +
+    'pick up the full card with /inbox in a session.',
+  exportSectionMissing: '(The full text of this section is not in this file: the settings-card state does not provide it. Pick up the full card with /inbox in a session.)',
   matrixTitle: 'Support matrix (8 readers)',
   sessionsCount: '{n} sessions',
   sessionsProbeFail: 'session count probe failed',

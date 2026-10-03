@@ -131,6 +131,7 @@ test('buildState：pending 概览 + archived 计数 + 支持矩阵八行', () =>
   })
 
   const st = buildState(readers, home)
+  assert.equal(st.home, home) // 0.3.0：state 携带解析后的 HANDOFF_HOME（客户端已见集合键散列用）
   assert.equal(st.pending.length, 1)
   assert.equal(st.pending[0]?.id, c2.id)
   assert.equal(st.pending[0]?.agent, 'codex')

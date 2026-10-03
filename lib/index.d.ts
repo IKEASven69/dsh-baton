@@ -347,6 +347,9 @@ interface ProviderRow {
   note: string;
 }
 interface TakeoverState {
+  /** 解析后的 HANDOFF_HOME 绝对路径（默认 ~/.handoff）：客户端 localStorage
+   * 已见卡集合的键散列数据源（0.3.0 新卡徽标），同源连不同机器不串扰 */
+  home: string;
   pending: PendingRow[];
   archivedCount: number;
   providers: ProviderRow[];

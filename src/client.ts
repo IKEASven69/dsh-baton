@@ -1,8 +1,10 @@
 /**
  * dsh-takeover 浏览器半：设置页「dsh-takeover」卡。
  * 四区：命令速览（/handoff · /inbox · /resume-*，直接可见）/ 收件箱概览
- * （pending 列表可展开看目标段预览 + archived 计数 + 清空归档）/ 支持矩阵
- * （八家读取器：规范名+品牌图标、会话数、启用开关）/ 开关语义说明。
+ * （即时过滤 + 相邻重复卡分组 + 「新」卡徽标（localStorage 已见集，键含
+ * HANDOFF_HOME 散列）+ 展开看目标段预览 + 单卡/全部导出 .md + archived 计数
+ * + 清空归档）/ 支持矩阵（八家读取器：规范名+品牌图标、会话数、启用开关）/
+ * 开关语义说明。
  * 文案走宿主 i18n：ctx.locale 注册本卡词典（zh/en）+ bind 出 t()，
  * 语言切换经 locale revision 驱动重渲染（宿主缺席时回退 zh 静态词典）。
  * 数据通路走同源 fetch 直连 host 路由 /dsh-takeover/*（dsh-hippo 先例）。
@@ -24,6 +26,16 @@ import type { Translate } from '@deepseek-ai/dsh-client-ui-slots'
 import { BRAND_FULL_SVG, BRAND_MARKS, PROVIDER_LABEL } from './brand-icons.ts'
 import type { BrandMark } from './brand-icons.ts'
 import { DICTS, NS, interpolate } from './locales.ts'
+import {
+  cardMarkdown,
+  filterPending,
+  groupAdjacent,
+  loadSeenSet,
+  pendingListMarkdown,
+  saveSeenSet,
+  seenStorageKey,
+} from './inbox-view.ts'
+import type { PendingGroup, SeenStore } from './inbox-view.ts'
 import type { TakeoverState, PendingRow, ProviderRow } from './settings.ts'
 
 /** 卡片渲染语言（跟随宿主 active locale；未登记语言回退 zh） */
@@ -229,6 +241,24 @@ const CSS = `
   padding: 8px 12px; margin: 4px 0 2px 0; white-space: pre-wrap;
   word-break: break-word; display: flex; flex-direction: column; gap: 4px; }
 .bt-preview-hint { font-size: 10.5px; color: var(--bt-mut); }
+/* 展开态动作行：预览提示 + 单卡导出按钮 */
+.bt-preview-actions { display: flex; align-items: center; gap: 8px; justify-content: space-between;
+  white-space: normal; }
+/* 收件箱工具行：即时过滤输入 + 导出全部（过滤词空 = 全量） */
+.bt-inbox-toolbar { display: flex; gap: 8px; align-items: center; }
+.bt-filter { flex: 1; min-width: 0; height: 30px; box-sizing: border-box;
+  border: 1px solid var(--bt-line); border-radius: 8px; background: transparent;
+  color: inherit; font-size: 12.5px; padding: 0 10px; outline: none;
+  transition: border-color .15s ease; }
+.bt-filter:focus { border-color: var(--bt-a); }
+.bt-filter::placeholder { color: var(--bt-mut); opacity: .75; }
+/* 行内小徽标：「新」（未展开过的卡）与分组计数，同一基座 */
+.bt-tag { font-size: 10px; font-weight: 700; line-height: 1.5; padding: 1px 7px;
+  border-radius: 999px; flex: none; white-space: nowrap; box-sizing: border-box; }
+.bt-tag-new { color: var(--bt-warn); background: rgba(251,191,36,.16); border: 1px solid rgba(251,191,36,.4); }
+.bt-tag-group { color: var(--bt-a); background: rgba(99,102,241,.12); border: 1px solid transparent; }
+/* 组内成员行：整体右缩进，视觉上挂在组头下 */
+.bt-pending-member { margin-left: 20px; }
 .bt-cmds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; }
 .bt-cmd { display: flex; align-items: center; gap: 8px; min-width: 0; border: 1px solid var(--bt-line);
   border-radius: 8px; padding: 6px 10px; font-size: 12px; background: transparent;
@@ -321,12 +351,76 @@ function fmtTime(iso: string, lang: Lang): string {
     : `${d.getMonth() + 1}月${d.getDate()}日 ${hm}`
 }
 
+/**
+ * 防御式取 localStorage：隐私模式 / 禁写（SecurityError、quota）回 null，
+ * 已见集合退化为仅本会话记住（纯内存），徽标语义仍在，卡片不塌。
+ * 探测一次真实读写——拿到引用不代表能写（Safari 隐私模式的老坑）。
+ */
+function safeLocalStorage(): SeenStore | null {
+  try {
+    const s: unknown = globalThis.localStorage
+    if (s === null || typeof s !== 'object') return null
+    const store = s as SeenStore
+    const probe = '__dsh_takeover_probe__'
+    store.setItem(probe, probe)
+    store.removeItem(probe)
+    return store
+  } catch {
+    return null
+  }
+}
+
+/** Blob 下载：零依赖（URL.createObjectURL + 隐形 <a> 点击）；异常由调用方进错误横幅 */
+function downloadText(filename: string, text: string): void {
+  const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  window.setTimeout(() => { URL.revokeObjectURL(url) }, 1_000)
+}
+
+/** 导出文件名的时间戳尾巴：handoff-pending-20261003-1215.md */
+function exportStamp(d = new Date()): string {
+  const pad = (n: number): string => String(n).padStart(2, '0')
+  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`
+}
+
 // ---------------------------------------------------------------------------
 // 展示件
 // ---------------------------------------------------------------------------
 
-function PendingList({ rows, t, lang }: { rows: PendingRow[]; t: Translate; lang: Lang }): ReturnType<typeof createElement> {
+function PendingList({ rows, query, home, t, lang, onExport }: {
+  rows: PendingRow[]
+  query: string
+  /** 解析后的 HANDOFF_HOME（state.home）：已见集合 localStorage 键的散列源 */
+  home: string
+  t: Translate
+  lang: Lang
+  /** 单卡导出（展开态「导出 .md」按钮），下载逻辑在 Panel */
+  onExport: (p: PendingRow) => void
+}): ReturnType<typeof createElement> {
+  // 已见集合：localStorage 按 HANDOFF_HOME 散列分键；打开过（展开过）即记为已见。
+  // 存储不可写时退化为仅本会话记住（loadSeenSet/saveSeenSet 全程不抛）。
+  const [store] = useState(safeLocalStorage)
+  const [seen, setSeen] = useState<Set<string>>(() => loadSeenSet(store, seenStorageKey(home)))
   const [openIds, setOpenIds] = useState<Set<string>>(new Set())
+  // HANDOFF_HOME 变更（服务端换目录/换机器）→ 键变，已见集随之重载
+  useEffect(() => { setSeen(loadSeenSet(store, seenStorageKey(home))) }, [store, home])
+
+  const markSeen = (ids: readonly string[]): void => {
+    setSeen((prev) => {
+      const fresh = ids.filter((id) => !prev.has(id))
+      if (fresh.length === 0) return prev
+      const next = new Set(prev)
+      for (const id of fresh) next.add(id)
+      saveSeenSet(store, seenStorageKey(home), next)
+      return next
+    })
+  }
   const toggleOpen = (id: string): void => {
     setOpenIds((prev) => {
       const next = new Set(prev)
@@ -334,49 +428,120 @@ function PendingList({ rows, t, lang }: { rows: PendingRow[]; t: Translate; lang
       else next.add(id)
       return next
     })
+    markSeen([id]) // 打开过即记为已见，「新」徽标随之消失
   }
+  const toggleGroup = (g: PendingGroup): void => {
+    const willOpen = !openIds.has(g.key)
+    setOpenIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(g.key)) next.delete(g.key)
+      else next.add(g.key)
+      return next
+    })
+    // 组头展开即整组可见：全部成员一并记为已见（同一 openIds 机制，键是组 key）
+    if (willOpen) markSeen(g.rows.map((r) => r.id))
+  }
+
+  // 先滤后组：过滤改变可见序列，「相邻」在滤后的列表上判定
+  const visible = filterPending(rows, query, (a) => PROVIDER_LABEL[a] ?? a)
+  const groups = groupAdjacent(visible)
+
   if (rows.length === 0) {
     return createElement('div', { className: 'bt-banner bt-banner-info' }, t('emptyInbox'))
   }
-  return createElement('div', { className: 'bt-rows' },
-    ...rows.map((p) => {
-      const open = openIds.has(p.id)
-      return createElement('div', {
-        key: p.id,
+
+  const rowNode = (p: PendingRow, inGroup: boolean): ReturnType<typeof createElement> => {
+    const open = openIds.has(p.id)
+    const isNew = !seen.has(p.id)
+    return createElement('div', {
+      key: p.id,
+      className: `bt-pending${open ? ' bt-pending-open' : ''}${inGroup ? ' bt-pending-member' : ''}`,
+      title: p.id,
+      role: 'button',
+      tabIndex: 0,
+      'aria-expanded': open,
+      onClick: () => { toggleOpen(p.id) },
+      onKeyDown: (e: { key: string; preventDefault(): void }) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleOpen(p.id) }
+      },
+    },
+      createElement('span', { className: 'bt-pend-icon' }, createElement(ProviderIcon, { name: p.agent, size: 22 })),
+      createElement('span', { className: 'bt-pend-main' },
+        createElement('span', { className: 'bt-pend-line1' },
+          createElement('span', { className: 'bt-pending-title' }, p.title !== '' ? p.title : p.id),
+          isNew ? createElement('span', { className: 'bt-tag bt-tag-new' }, t('newBadge')) : null,
+          createElement('span', { className: 'bt-pend-time' }, p.pushedAt === '' ? t('noTime') : fmtTime(p.pushedAt, lang)),
+        ),
+        createElement('span', {
+          className: 'bt-pend-meta',
+          title: `${t('from', { name: '' }).trim()} · ${t('project', { name: '' }).trim()} · ${t('idLabel', { id: '' }).trim()}`,
+        },
+          createElement('span', { className: 'bt-pend-src' }, PROVIDER_LABEL[p.agent] ?? p.agent),
+          p.project !== '' ? createElement('span', { className: 'bt-pend-dot' }, '·') : null,
+          p.project !== '' ? createElement('span', null, p.project) : null,
+          createElement('span', { className: 'bt-pend-dot' }, '·'),
+          createElement('span', { className: 'bt-pend-id' }, p.id),
+        ),
+      ),
+      createElement('span', { className: 'bt-pending-chev', 'aria-hidden': true }, '▸'),
+      open ? createElement('div', { className: 'bt-preview', onClick: (e: Event) => e.stopPropagation() },
+        createElement('span', null, p.preview !== '' ? p.preview : t('previewEmpty')),
+        createElement('span', { className: 'bt-preview-actions' },
+          createElement('span', { className: 'bt-preview-hint' }, t('previewHint')),
+          createElement('button', {
+            className: 'bt-btn',
+            onClick: () => { onExport(p) },
+            title: t('exportCardTitle'),
+          }, t('exportCard')),
+        ),
+      ) : null,
+    )
+  }
+
+  const groupNode = (g: PendingGroup): ReturnType<typeof createElement> => {
+    const open = openIds.has(g.key)
+    const hasNew = g.rows.some((r) => !seen.has(r.id))
+    const head = g.rows[0]
+    return createElement('div', { key: g.key, className: 'bt-group' },
+      createElement('div', {
         className: `bt-pending${open ? ' bt-pending-open' : ''}`,
-        title: p.id,
+        title: g.rows.map((r) => r.id).join(' · '),
         role: 'button',
         tabIndex: 0,
         'aria-expanded': open,
-        onClick: () => { toggleOpen(p.id) },
+        'aria-label': `${g.title}，${t('groupCount', { n: g.rows.length })}`,
+        onClick: () => { toggleGroup(g) },
         onKeyDown: (e: { key: string; preventDefault(): void }) => {
-          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleOpen(p.id) }
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleGroup(g) }
         },
       },
-        createElement('span', { className: 'bt-pend-icon' }, createElement(ProviderIcon, { name: p.agent, size: 22 })),
+        createElement('span', { className: 'bt-pend-icon' }, createElement(ProviderIcon, { name: g.agent, size: 22 })),
         createElement('span', { className: 'bt-pend-main' },
           createElement('span', { className: 'bt-pend-line1' },
-            createElement('span', { className: 'bt-pending-title' }, p.title !== '' ? p.title : p.id),
-            createElement('span', { className: 'bt-pend-time' }, p.pushedAt === '' ? t('noTime') : fmtTime(p.pushedAt, lang)),
+            createElement('span', { className: 'bt-pending-title' }, g.title),
+            createElement('span', { className: 'bt-tag bt-tag-group' }, t('groupCount', { n: g.rows.length })),
+            hasNew ? createElement('span', { className: 'bt-tag bt-tag-new' }, t('newBadge')) : null,
+            head !== undefined
+              ? createElement('span', { className: 'bt-pend-time' }, head.pushedAt === '' ? t('noTime') : fmtTime(head.pushedAt, lang))
+              : null,
           ),
           createElement('span', {
             className: 'bt-pend-meta',
-            title: `${t('from', { name: '' }).trim()} · ${t('project', { name: '' }).trim()} · ${t('idLabel', { id: '' }).trim()}`,
+            title: t('from', { name: '' }).trim(),
           },
-            createElement('span', { className: 'bt-pend-src' }, PROVIDER_LABEL[p.agent] ?? p.agent),
-            p.project !== '' ? createElement('span', { className: 'bt-pend-dot' }, '·') : null,
-            p.project !== '' ? createElement('span', null, p.project) : null,
-            createElement('span', { className: 'bt-pend-dot' }, '·'),
-            createElement('span', { className: 'bt-pend-id' }, p.id),
+            createElement('span', { className: 'bt-pend-src' }, PROVIDER_LABEL[g.agent] ?? g.agent),
           ),
         ),
         createElement('span', { className: 'bt-pending-chev', 'aria-hidden': true }, '▸'),
-        open ? createElement('div', { className: 'bt-preview', onClick: (e: Event) => e.stopPropagation() },
-          createElement('span', null, p.preview !== '' ? p.preview : t('previewEmpty')),
-          createElement('span', { className: 'bt-preview-hint' }, t('previewHint')),
-        ) : null,
-      )
-    }),
+      ),
+      open ? g.rows.map((r) => rowNode(r, true)) : null,
+    )
+  }
+
+  return createElement('div', { className: 'bt-rows' },
+    groups.length === 0
+      ? createElement('div', { className: 'bt-banner bt-banner-info' }, t('filterEmpty'))
+      : groups.map((g) => (g.rows.length > 1 ? groupNode(g) : rowNode(g.rows[0] as PendingRow, false))),
   )
 }
 
@@ -495,6 +660,8 @@ function Panel({ t, locale }: { t: Translate; locale: LocaleRuntime | undefined 
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [confirmClear, setConfirmClear] = useState(false)
+  // 收件箱即时过滤词：空串 = 不过滤（纯前端，输入即滤，清空恢复）
+  const [query, setQuery] = useState('')
   // 语言切换实时重渲染：宿主 locale revision 变化即重画（bound t 在渲染时取词）
   useSyncExternalStore(
     (cb) => {
@@ -559,6 +726,29 @@ function Panel({ t, locale }: { t: Translate; locale: LocaleRuntime | undefined 
 
   const archivedCount = state?.archivedCount ?? 0
 
+  // 导出说明文案随当前语言现取；生成/下载全程 try 包住，异常进错误横幅不塌卡
+  const exportNotes = (): { top: string; missing: string } => ({
+    top: t('exportNoteTop'),
+    missing: t('exportSectionMissing'),
+  })
+  // 单卡导出：文件名 = 编号.md；内容由 state 真有字段生成，缺的段就地注明（inbox-view.ts）
+  const exportOne = (p: PendingRow): void => {
+    try {
+      downloadText(`${p.id}.md`, cardMarkdown(p, exportNotes()))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+  // 导出全部：全部待取件拼一个 .md（文件名带导出时刻，避免反复下载互相覆盖）
+  const exportAll = (): void => {
+    if (state === null || state.pending.length === 0) return
+    try {
+      downloadText(`handoff-pending-${exportStamp()}.md`, pendingListMarkdown(state.pending, exportNotes()))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
   return createElement('div', { className: 'bt-panel', style: themeVars() },
     createElement('style', null, CSS),
 
@@ -600,7 +790,34 @@ function Panel({ t, locale }: { t: Translate; locale: LocaleRuntime | undefined 
         }, confirmClear ? t('clearConfirm', { n: archivedCount }) : t('clearArchived')),
       ),
       state !== null
-        ? createElement(PendingList, { rows: state.pending, t, lang })
+        ? createElement('div', null,
+            // 工具行：即时过滤 + 导出全部（收件箱头部区，常驻——待取件为 0 时只禁用导出）
+            createElement('div', { className: 'bt-inbox-toolbar' },
+              createElement('input', {
+                className: 'bt-filter',
+                type: 'search',
+                value: query,
+                placeholder: t('filterPlaceholder'),
+                'aria-label': t('filterAria'),
+                title: t('filterAria'),
+                onChange: (e: { target: { value: string } }) => { setQuery(e.target.value) },
+              }),
+              createElement('button', {
+                className: 'bt-btn',
+                disabled: state.pending.length === 0,
+                onClick: exportAll,
+                title: t('exportAllTitle'),
+              }, t('exportAll')),
+            ),
+            createElement(PendingList, {
+              rows: state.pending,
+              query,
+              home: state.home,
+              t,
+              lang,
+              onExport: exportOne,
+            }),
+          )
         : createElement('div', { className: 'bt-sub' }, t('loading')),
     ),
 
