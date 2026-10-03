@@ -2,13 +2,29 @@
 
 > **版本体系重置（2026-10-01）**：0.1–0.5 时期的版本号随开发过程推进过快、颗粒度失真，经用户要求自本日起**重置为 0.1.0 重新起算**——0.1.0 = 当前功能全集（八家拉取 / 交接寄存 / 收件箱取件 / 设置卡四区 / 双语 i18n / 八家品牌图标）经完整真用户流测试通过后的首个版本。此前的版本号历史见文末归档，仅作记录，不再构成发布序列。
 
-## [0.2.0] — 未发布（待发布）
+## [0.3.0] — 2026-10-03
+
+### 新增
+- **收件箱即时过滤**：头部过滤框按标题 / 来源 / 编号子串即时过滤（纯前端，清空恢复，全滤空显示「没有匹配」）
+- **新卡徽标**：state 首现卡片显示「新」，展开即记已见（localStorage 按 HANDOFF_HOME 散列键隔离，上限 1000，坏 JSON 降级不抛）
+- **重复卡分组**：相邻同来源 + 同标题卡片折叠「×N」组，展开逐条；组内任一新卡则组头带「新」
+- **导出**：展开态「导出 .md」（单卡 frontmatter + 六段）+「导出全部」（全部待取件拼一个 .md）；导出只写 state 真有字段，「目标」段为 240 字预览、缺失段就地注明边界
+- 新增 `src/inbox-view.ts` 纯函数层与 13 条单测（过滤 / 分组 / FNV-1a 已见集合 / 导出含 parseCard round-trip）；`TakeoverState` 新增 `home` 字段（客户端已见键散列数据源）
+
+### 变更
+- **P0 通知形态定案**：阻塞式面板前置条件 = 目标会话已绑定当前浏览器且用户正看着——与通知「用户可能不在看」天然冲突，**通知形态定为收件箱行内新卡高亮**；同会话在线时的确认面板代码保留（正向场景仍有效）。根因排查全链见工作流报告（api-remotes 载体校验 → api-gateway 投递 → api-session-controller retainAgentScope 三段证据）
+- 通知降级可观测：降级码进日志（区分未认领 / 已中止）
+
+### 已知项
+- 实机复测：会话打开 + 绑定条件下 `/handoff` 推送成功但面板仍未弹出（1 个数据点，与源码分析的正向预测不符）；剩余未排除分支 = 网关 answer() 客户端异常，抓浏览器 console.error 复跑可定位
+
+## [0.2.0] — 2026-10-03
 
 ### 新增
 - **假 0 哨兵 + 浮出**：读取器存储根目录存在但 discover 为 0 时，适配器 note 置「存储目录存在但未发现会话——上游可能已迁移存储布局（参考 opencode 1.18 迁 SQLite）」；设置卡支持矩阵行在 supported 且 note 非空时以橙色小字行内浮出（title 悬浮与 aria-description 同步），不再静默 0。哨兵本体在 agent-handoff readers（codex / cursor / grok + opencode storage 回退路径；有数据的家 note 保持空），随构建打包
 - **空 cwd 警告**：外来会话未记录工作区目录时，`foreign_session_read` 骨架卡「读者警告」段追加「⚠ 该会话未记录工作区目录，接手前先确认目录」；/resume-* skill 的 verify-then-continue 段补同款规则（casr #20 同类）
 - **设置卡自动刷新**：面板挂载后每 30s 自动拉取 `/dsh-takeover/state`，仅 `document.visibilityState === 'visible'` 时拉取；卸载清理 interval；手动刷新按钮保留
-- **寄存/取件后的宿主通知**：`handoff_push` / `handoff_inbox`(load) 成功后经 `ctx.userQuestions.ask` 弹阻塞式问答面板（「已寄存/已取件会话卡片 handoff:<id>，需继续吗？」）。服务缺席（旧宿主）、客户端离线（NO_PROVIDER）、subagent 持有 agent（DELEGATED_CALLER）一律静默降级为工具结果文本，不阻断主流程。待实机验证：离线/无 open turn 时 ask 的实际行为
+- **寄存/取件后的宿主通知**：`handoff_push` / `handoff_inbox`(load) 成功后经 `ctx.userQuestions.ask` 弹阻塞式问答面板（「已寄存/已取件会话卡片 handoff:<id>，需继续吗？」）。服务缺席（旧宿主）、客户端离线（NO_PROVIDER）、subagent 持有 agent（DELEGATED_CALLER）一律静默降级为工具结果文本，不阻断主流程。实机验证（0.3.0）：面板未按预测弹出，结论与后续排查见 [0.3.0] 已知项
 - README 双语新增「竞品与差异化」「跨机器接力」小节（竞品调研底稿 docs/竞品动态-1003.md；`HANDOFF_HOME` 指向同步盘/git 仓库即多机接力，一句配置零代码）
 - agent-handoff 协议仓 README 顶部 handoff: 1 协议声明 + 采用登记节（版本化开放协议；采用者 issue 登记；与 JarvanAI 同名仓无关联的澄清，中英同步）
 
