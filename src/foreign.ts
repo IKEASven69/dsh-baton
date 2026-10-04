@@ -3,7 +3,7 @@
  * - action=list：该家会话候选列表（标题 / 时间 / 轮数）。
  * - action=show：结构化摘要（不是原文倾倒）——标题、轮数、首条用户消息、
  *   尾部进展、涉及文件 top15、骨架卡六段素材；turns 原文仅在模型显式
- *   传更大 limit 时分页给（limit/offset）。
+ *   传更大 limit 时分页给（offset 指定起始轮，需与 limit 同用）。
  * 读取层是 @agent-handoff/readers（八家适配器），通过依赖注入可替换（单测用）。
  * 全部规范值返回 { ok, ... }；探测 / 解析失败一律 { ok: false, error }，绝不抛出。
  * @module dsh-takeover/foreign
@@ -413,7 +413,7 @@ export function renderForeign(_args: unknown, value: unknown): Array<{ type: 'te
           `## 原文分页：本页 ${v.turns.length} 轮（offset=${v.turnsOffset}，共 ${v.turnsTotal} 轮${v.turnsOffset + v.turns.length < v.turnsTotal ? '，传更大 offset 继续拉下一页' : '，已到末尾'}）`,
           ...turnLines(v.turns),
         ]
-      : [`原文未返回（共 ${v.turnsTotal} 轮；需要时传 limit/offset 分页拉取）`]),
+      : [`原文未返回（共 ${v.turnsTotal} 轮；需要时传 limit 分页拉取，offset 指定起始轮）`]),
     v.note !== undefined ? `⚠️ ${v.note}` : '',
   ].filter((l) => l !== '')
   return [{ type: 'text', text: lines.join('\n') }]
@@ -437,7 +437,7 @@ function tailLines(tail: string[]): string {
 export function registerForeignTool(ctx: Context, env?: ForeignEnv): void {
   ctx.tools.register(defineTool({
     name: 'foreign_session_read',
-    description: '只读拉取八家外部 agent（claude / codex / opencode / zcode / pi / workbuddy / cursor / grok）的本地会话。action=list 列候选（标题/时间/轮数）；action=show 按引用（空或 latest=最新；歧义返回候选不猜）返回结构化摘要：标题、轮数、首条用户消息、尾部进展、涉及文件 top15、骨架卡六段素材；可见结果文本已含摘要与骨架六段素材全文，无需重复调用。turns 原文只在显式传 limit 时分页给（limit/offset），同样出现在可见文本里。返回 { ok, ... } 规范值。',
+    description: '只读拉取八家外部 agent（claude / codex / opencode / zcode / pi / workbuddy / cursor / grok）的本地会话。action=list 列候选（标题/时间/轮数）；action=show 按引用（空或 latest=最新；歧义返回候选不猜）返回结构化摘要：标题、轮数、首条用户消息、尾部进展、涉及文件 top15、骨架卡六段素材；可见结果文本已含摘要与骨架六段素材全文，无需重复调用。turns 原文只在显式传 limit 时分页给（offset 指定起始轮，需与 limit 同用），同样出现在可见文本里。返回 { ok, ... } 规范值。',
     parameters: {
       provider: { type: 'string', required: true, enum: FOREIGN_PROVIDERS, description: '目标 agent 家：claude / codex / opencode / zcode / pi / workbuddy / cursor / grok' },
       action: { type: 'string', required: true, enum: ['list', 'show'], description: 'list 列会话候选；show 读一个会话的结构化摘要' },
